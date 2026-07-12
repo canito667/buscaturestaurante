@@ -770,21 +770,26 @@ st.title(t("title"))
 st.subheader(t("subtitle"))
 
 # --- Adaptación móvil / Safari / "Añadir a pantalla de inicio" ---
+# Solo <style>: Streamlit ya incluye el meta viewport por defecto. Dejar el
+# <style> solo (sin <meta> pegado) evita que el parser de markdown lo muestre
+# como texto. Selectores actualizados a Streamlit 1.x (los de "reportview"
+# ya no existen y no aplicaban).
 st.markdown(
-    "<meta name='viewport' content='width=device-width, initial-scale=1, "
-    "viewport-fit=cover'>"
-    "<style>"
-    "/* Botones y radios grandes para el dedo (touch-friendly) */"
-    ".stButton>button, .stRadio>div, .stCheckbox>label, .stSelectbox>div {"
-    "  font-size:17px !important; min-height:44px; }"
-    ".stTextInput>div>div>input { font-size:17px !important; height:46px; }"
-    "/* La barra lateral en movil ocupa toda la pantalla y se ve como menu */"
-    "@media (max-width: 640px) {"
-    "  .css-1d391kg, section[data-testid='stSidebar'] { width:100% !important; }"
-    "}"
-    "/* Quita el hueco inferior en Safari (notch / home indicator) */"
-    ".reportview-container .main .block-container { padding-bottom: 80px; }"
-    "</style>",
+    """
+    <style>
+    /* Botones y radios grandes para el dedo (touch-friendly) */
+    .stButton>button, .stRadio>div, .stCheckbox>label, .stSelectbox>div {
+      font-size:17px !important; min-height:44px;
+    }
+    .stTextInput>div>div>input { font-size:17px !important; height:46px; }
+    /* La barra lateral en movil ocupa toda la pantalla y se ve como menu */
+    @media (max-width: 640px) {
+      section[data-testid='stSidebar'] { width:100% !important; }
+    }
+    /* Quita el hueco inferior en Safari (notch / home indicator) */
+    .block-container { padding-bottom: 80px; }
+    </style>
+    """,
     unsafe_allow_html=True)
 
 with st.expander("📱 " + t("add_to_home_hint_title"), expanded=False):

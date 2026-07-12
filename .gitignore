@@ -1,0 +1,13 @@
+# Entorno virtual
+.venv/
+venv/
+
+# Secretos (NUNCA se suben)
+secrets.toml
+
+# Caché de Python
+__pycache__/
+*.pyc
+
+# Cache de Streamlit
+.streamlit/secrets.toml
