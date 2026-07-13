@@ -873,8 +873,14 @@ diet_key = {t("diet_none"): None, t("diet_veg"): "vegetarian",
 
 # --- BÚSQUEDA EN RED: solo al pulsar "Buscar" (no en cada cambio de filtro) ---
 if search_button:
-    # Usa lo que haya tecleado el usuario, o la ciudad del boton rapido.
-    query = location_query.strip() or st.session_state.get("pending_city", "")
+    # Lo que escriba el usuario manda siempre; el boton rapido solo si el
+    # campo esta vacio. Asi no queda "pegada" una ciudad anterior.
+    typed = location_query.strip()
+    if typed:
+        st.session_state["pending_city"] = ""
+        query = typed
+    else:
+        query = st.session_state.get("pending_city", "")
     if not query:
         st.warning(t("enter_loc"))
     else:
