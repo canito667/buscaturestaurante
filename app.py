@@ -68,17 +68,26 @@ def geocode_help(location_query):
     para que la UI proponga correcciones si la direccion esta mal/ambigua.
     Reintenta con espera creciente: Nominatim es un servidor publico sin API
     key y en la nube (IP compartida) aplica rate-limit, lo que causa los
-    'no encontrado' intermitentes. Respeta la politica: 1s entre peticiones."""
+    'no encontrado' intermitentes. Respeta la politica: 1s entre peticiones.
+    Si el texto son 5 digitos, busca como codigo postal frances."""
+    q = location_query.strip()
+    postal = None
+    if q.isdigit() and len(q) == 5:
+        postal = q  # codigo postal frances (ej: 75014)
     def _fetch():
-        params = {"q": location_query, "format": "json", "limit": 5,
-                  "addressdetails": 1, "countrycodes": "fr"}
+        if postal:
+            params = {"postalcode": postal, "country": "France",
+                      "format": "json", "limit": 5, "addressdetails": 1}
+        else:
+            params = {"q": q, "format": "json", "limit": 5,
+                      "addressdetails": 1, "countrycodes": "fr"}
         resp = requests.get(NOMINATIM_URL, params=params,
                             headers=HEADERS, timeout=15)
         resp.raise_for_status()
         return resp.json()
     time.sleep(1.0)  # politica Nominatim: maximo 1 peticion/segundo
     try:
-        for intento in range(4):
+        for intento in range(6):
             data = _fetch()
             if data:
                 break
@@ -89,7 +98,7 @@ def geocode_help(location_query):
         alts = [d.get("display_name", "") for d in data[1:6]]
         top = data[0]
         return (float(top["lat"]), float(top["lon"]),
-                top.get("display_name", location_query), alts)
+                top.get("display_name", q), alts)
     except Exception:
         return None, None, "", []
 
@@ -929,8 +938,9 @@ _gps_component = components.declare_component("gps_picker", path=_gps_path)
 
 def gps_picker():
     """Boton HTML que pide el GPS al navegador y devuelve {'lat':..,'lon':..}
-    o None, via Streamlit.setComponentValue."""
-    return _gps_component()
+    o None, via Streamlit.setComponentValue. height explicito: si no, el iframe
+    queda a 0px y el boton es invisible."""
+    return _gps_component(height=64)
 
 gps_val = gps_picker()
 if gps_val and isinstance(gps_val, dict) and "lat" in gps_val:
