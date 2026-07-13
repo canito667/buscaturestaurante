@@ -943,44 +943,22 @@ st.markdown(
     f"🍽️ {t('dest_label')}</div></div>",
     unsafe_allow_html=True)
 
-# OPCION PRINCIPAL (heroe): "Usar mi ubicacion". Boton grande y animado con
-# el texto para Daniel. Usamos streamlit_js_eval: nuestro js_expressions inyecta
-# el boton animado (CSS dentro del iframe) y, al pulsarlo, pide el GPS y devuelve
-# {latitude, longitude} a Python. Es fiable en Streamlit Cloud (el componente
-# SI sirve el JS, a diferencia del HTML embebido). Requiere HTTPS y permiso.
+# OPCION PRINCIPAL (heroe): "Usar mi ubicacion". Caja animada (glow) para que
+# resalte y el texto para Daniel. Usamos st_js.get_geolocation (patron del
+# paquete que resuelve su propia Promise y NO cuelga la pagina, a diferencia
+# de inyectar JS que espera el click). Requiere HTTPS y permiso del navegador.
 import streamlit_js_eval as st_js
-GEO_JS = """
-new Promise((resolve) => {
-  const s = document.createElement('style');
-  s.textContent = `
-    @keyframes gpsglow{0%,100%{box-shadow:0 0 0 0 rgba(46,139,87,.7),0 0 12px 2px rgba(46,139,87,.6);}50%{box-shadow:0 0 0 8px rgba(46,139,87,0),0 0 22px 6px rgba(46,139,87,.95);}}
-    @keyframes gpspulse{0%,100%{transform:scale(1);}50%{transform:scale(1.04);}}
-    .gpshero{width:100%;min-height:60px;border:none;cursor:pointer;border-radius:14px;color:#fff;font-size:19px;font-weight:800;background:linear-gradient(135deg,#1f6f54,#2e8b57);animation:gpsglow 2.2s ease-in-out infinite,gpspulse 2.2s ease-in-out infinite;}
-    .gpshero:hover{filter:brightness(1.08);}
-    #gpsmsg{font-size:13px;margin-top:8px;color:#333;}`;
-  document.head.appendChild(s);
-  const box = document.createElement('div');
-  box.style.marginBottom = '14px';
-  const b = document.createElement('button');
-  b.className = 'gpshero';
-  b.innerHTML = '📍 Papa, no sé, mais l’appli choisit pour moi';
-  b.onclick = () => {
-    const m = document.getElementById('gpsmsg');
-    if(!navigator.geolocation){ if(m) m.textContent='GPS non supporté'; resolve({error:{message:'GPS non supporté'}}); return; }
-    if(m) m.textContent = 'Autorise l’accès à ta position…';
-    navigator.geolocation.getCurrentPosition(
-      p => resolve({latitude:p.coords.latitude, longitude:p.coords.longitude}),
-      e => { if(m) m.textContent='GPS impossible : '+e.message; resolve({error:{message:e.message}}); }
-    );
-  };
-  box.appendChild(b);
-  const m = document.createElement('div'); m.id='gpsmsg';
-  box.appendChild(m);
-  document.body.appendChild(box);
-  if(window.setFrameHeight) setFrameHeight(120);
-});
-"""
-geo = st_js.streamlit_js_eval(js_expressions=GEO_JS, key="geo_btn")
+st.markdown(
+    "<div style='padding:12px 14px;border-radius:14px;margin-bottom:12px;"
+    "background:linear-gradient(135deg,#1f6f54,#2e8b57);color:#fff;"
+    "box-shadow:0 0 14px 3px rgba(46,139,87,.6);"
+    "animation:gpsglow 2.2s ease-in-out infinite'>"
+    "<div style='font-size:18px;font-weight:800;margin-bottom:8px'>"
+    "📍 Papa, no sé, mais l’appli choisit pour moi</div></div>"
+    "<style>@keyframes gpsglow{0%,100%{box-shadow:0 0 10px 2px rgba(46,139,87,.55);}"
+    "50%{box-shadow:0 0 22px 6px rgba(46,139,87,.9);}}</style>",
+    unsafe_allow_html=True)
+geo = st_js.get_geolocation(component_key="geo_btn")
 if geo and isinstance(geo, dict) and geo.get("latitude") is not None:
     lat = float(geo["latitude"]); lon = float(geo["longitude"])
     location_query = f"{lat:.5f}, {lon:.5f}"
