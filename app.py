@@ -939,36 +939,53 @@ st.markdown(
     f"<div style='font-size:20px;font-weight:800;margin-bottom:10px'>"
     f"🍽️ {t('dest_label')}</div></div>",
     unsafe_allow_html=True)
-location_query = st.text_input(
-    "",  # etiqueta ya en la caja destacada de arriba
-    key="location_query",
-    placeholder=t("dest_placeholder"))
 
-# Boton "Cerca de mi" (GPS del navegador). En Streamlit Community Cloud los
-# componentes locales (declare_component) NO se sirven, asi que usamos HTML
-# embebido (st.markdown) que pide el GPS y escribe "lat, lon" en un text_input
-# oculto; al cambiar el widget, Streamlit reacciona y la app lee la posicion.
-# Requiere HTTPS (la nube lo es) y que el usuario acepte el permiso.
+# BOTON PRINCIPAL: "Cerca de mi" (GPS). Opcion heroe de la pagina: grande,
+# animado (glow + latido + radar) y con el texto gracioso. En Streamlit Cloud
+# los componentes locales no se sirven, asi que usamos HTML embebido que pide
+# el GPS y escribe "lat, lon" en un text_input oculto; al cambiar el widget,
+# Streamlit reacciona y la app lee la posicion. Requiere HTTPS y permiso.
 GPS_HTML = """
-<div id="gpsbox">
-  <button onclick="pedirGPS()" style="font-size:17px;min-height:44px;width:100%;
-    border:none;border-radius:8px;background:#1f6f54;color:#fff;cursor:pointer">
-    📍 Cerca de mí (GPS)</button>
-  <div id="gpsmsg" style="font-size:13px;margin-top:6px;color:#333"></div>
+<style>
+@keyframes gpsglow {
+  0%,100% { box-shadow:0 0 0 0 rgba(46,139,87,.7), 0 0 12px 2px rgba(46,139,87,.6); }
+  50%     { box-shadow:0 0 0 8px rgba(46,139,87,0), 0 0 22px 6px rgba(46,139,87,.9); }
+}
+@keyframes gpspulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.035);} }
+@keyframes gpsradar {
+  0%   { transform:scale(.9); opacity:.55; }
+  100% { transform:scale(1.6); opacity:0; }
+}
+.gpshero{
+  position:relative; width:100%; min-height:58px; border:none; cursor:pointer;
+  border-radius:14px; color:#fff; font-size:19px; font-weight:800;
+  background:linear-gradient(135deg,#1f6f54,#2e8b57);
+  animation:gpsglow 2.2s ease-in-out infinite, gpspulse 2.2s ease-in-out infinite;
+}
+.gpshero:hover{filter:brightness(1.08);}
+.gpsring{ position:absolute; inset:0; border-radius:14px; pointer-events:none;
+  border:2px solid rgba(46,139,87,.7); animation:gpsradar 2.2s ease-out infinite; }
+</style>
+<div style="position:relative;margin-bottom:14px">
+  <div class="gpsring"></div>
+  <button class="gpshero" onclick="pedirGPS()">
+    📍 Je sais pas, papa… mais mon appli choisit pour moi
+  </button>
+  <div id="gpsmsg" style="font-size:13px;margin-top:8px;color:#333"></div>
 </div>
 <script>
 function pedirGPS(){
   var m=document.getElementById('gpsmsg');
-  if(!navigator.geolocation){m.textContent='GPS no soportado';return;}
-  m.textContent='Permite el acceso a tu ubicación…';
+  if(!navigator.geolocation){m.textContent='GPS non supporté';return;}
+  m.textContent='Autorise l’accès à ta position…';
   navigator.geolocation.getCurrentPosition(
     function(p){
       var inp=document.querySelector('input[id*="gps_coord"]');
       if(inp){inp.value=p.coords.latitude.toFixed(5)+','+p.coords.longitude.toFixed(5);
         var ev=new Event('input',{bubbles:true});inp.dispatchEvent(ev);}
-      m.textContent='Ubicación obtenida ✅';
+      m.textContent='Position trouvée ✅';
     },
-    function(e){m.textContent='No se pudo obtener el GPS: '+e.message;});
+    function(e){m.textContent='GPS impossible : '+e.message;});
 }
 </script>
 """
@@ -985,6 +1002,11 @@ if gps_coord and "," in gps_coord:
         st.rerun()
     except Exception:
         pass
+
+location_query = st.text_input(
+    "",  # etiqueta ya en la caja destacada de arriba
+    key="location_query",
+    placeholder=t("dest_placeholder"))
 
 search_button = st.button(t("search"), type="primary", use_container_width=True)
 # Si hay posicion GPS recien obtenida, buscamos con ella directamente
