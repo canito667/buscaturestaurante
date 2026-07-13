@@ -850,16 +850,6 @@ location_query = st.text_input(
     placeholder=t("dest_placeholder"))
 search_button = st.button(t("search"), type="primary", use_container_width=True)
 
-# Ciudades rapidas: un toque y busca (sin teclear acentos)
-QUICK = ["Paris", "Lyon", "Marseille", "Toulouse", "Nice", "Nantes"]
-st.caption(t("quick_cities"))
-qcols = st.columns(len(QUICK))
-for i, city in enumerate(QUICK):
-    with qcols[i]:
-        if st.button(city, key=f"quick_{i}", use_container_width=True):
-            st.session_state["pending_city"] = city
-            search_button = True
-
 radius = st.slider(t("radius"), 500, 3000, 1200, 100)
 
 # --- Paso 2: ¿solo o acompañado? ---
