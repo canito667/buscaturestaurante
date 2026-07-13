@@ -474,6 +474,7 @@ I18N = {
         ),
         "dest_label": "📍 ¿Dónde almuerzas hoy? (ciudad, código postal o dirección en Francia):",
         "dest_placeholder": "Ej: Paris, 75011, o 3 bis rue Pasteur 94270",
+        "gps_hint": "Usa mi ubicación para buscar restaurantes cerca de mí",
         "quick_cities": "⚡ Ciudades rápidas (toque y busca):",
         "search": "🔍 Buscar",
         "radius": "📏 Radio de búsqueda (m):",
@@ -567,6 +568,7 @@ I18N = {
         ),
         "dest_label": "📍 Where are you having lunch today? (city, postal code or address in France):",
         "dest_placeholder": "e.g. Paris, 75011, or 3 bis rue Pasteur 94270",
+        "gps_hint": "Use my location to find restaurants near me",
         "quick_cities": "⚡ Quick cities (tap to search):",
         "search": "🔍 Search",
         "radius": "📏 Search radius (m):",
@@ -662,6 +664,7 @@ I18N = {
         ),
         "dest_label": "📍 Où déjeunes-tu aujourd'hui ? (ville, code postal ou adresse en France) :",
         "dest_placeholder": "Ex : Paris, 75011, ou 3 bis rue Pasteur 94270",
+        "gps_hint": "Utilise ma position pour chercher les restos près de moi",
         "quick_cities": "⚡ Villes rapides (tape et cherche) :",
         "search": "🔍 Chercher",
         "radius": "📏 Rayon de recherche (m) :",
@@ -940,73 +943,23 @@ st.markdown(
     f"🍽️ {t('dest_label')}</div></div>",
     unsafe_allow_html=True)
 
-# BOTON PRINCIPAL: "Cerca de mi" (GPS). Opcion heroe de la pagina: grande,
-# animado (glow + latido + radar) y con el texto gracioso. En Streamlit Cloud
-# los componentes locales no se sirven, asi que usamos HTML embebido que pide
-# el GPS y escribe "lat, lon" en un text_input oculto; al cambiar el widget,
-# Streamlit reacciona y la app lee la posicion. Requiere HTTPS y permiso.
-GPS_HTML = """
-<style>
-@keyframes gpsglow {
-  0%,100% { box-shadow:0 0 0 0 rgba(46,139,87,.7), 0 0 12px 2px rgba(46,139,87,.6); }
-  50%     { box-shadow:0 0 0 8px rgba(46,139,87,0), 0 0 22px 6px rgba(46,139,87,.9); }
-}
-@keyframes gpspulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.035);} }
-@keyframes gpsradar {
-  0%   { transform:scale(.9); opacity:.55; }
-  100% { transform:scale(1.6); opacity:0; }
-}
-.gpshero{
-  position:relative; width:100%; min-height:58px; border:none; cursor:pointer;
-  border-radius:14px; color:#fff; font-size:19px; font-weight:800;
-  background:linear-gradient(135deg,#1f6f54,#2e8b57);
-  animation:gpsglow 2.2s ease-in-out infinite, gpspulse 2.2s ease-in-out infinite;
-}
-.gpshero:hover{filter:brightness(1.08);}
-.gpsring{ position:absolute; inset:0; border-radius:14px; pointer-events:none;
-  border:2px solid rgba(46,139,87,.7); animation:gpsradar 2.2s ease-out infinite; }
-</style>
-<div style="position:relative;margin-bottom:14px">
-  <div class="gpsring"></div>
-  <button class="gpshero" onclick="pedirGPS()">
-    📍 Je sais pas, papa… mais mon appli choisit pour moi
-  </button>
-  <div id="gpsmsg" style="font-size:13px;margin-top:8px;color:#333"></div>
-</div>
-<script>
-function pedirGPS(){
-  var m=document.getElementById('gpsmsg');
-  if(!navigator.geolocation){m.textContent='GPS non supporté';return;}
-  m.textContent='Autorise l’accès à ta position…';
-  navigator.geolocation.getCurrentPosition(
-    function(p){
-      var inp=document.querySelector('input[id*="gps_coord"]');
-      if(inp){inp.value=p.coords.latitude.toFixed(5)+','+p.coords.longitude.toFixed(5);
-        var ev=new Event('input',{bubbles:true});inp.dispatchEvent(ev);}
-      m.textContent='Position trouvée ✅';
-    },
-    function(e){m.textContent='GPS impossible : '+e.message;});
-}
-</script>
-"""
-st.markdown(GPS_HTML, unsafe_allow_html=True)
-
-# Campo oculto donde el JS escribe "lat, lon"; lo leemos como trigger de busqueda
-gps_coord = st.text_input("", key="gps_coord", placeholder="",
-                           label_visibility="collapsed")
-if gps_coord and "," in gps_coord:
-    try:
-        la, lo = gps_coord.split(",")
-        st.session_state["_gps_lat"] = float(la)
-        st.session_state["_gps_lon"] = float(lo)
-        st.rerun()
-    except Exception:
-        pass
-
 location_query = st.text_input(
     "",  # etiqueta ya en la caja destacada de arriba
     key="location_query",
     placeholder=t("dest_placeholder"))
+
+# Boton "Usar mi ubicacion" (GPS). Rellena la busqueda con las coordenadas
+# del movil. Usamos streamlit_js_eval (devuelve el valor a Python de forma
+# fiable en Streamlit Cloud, a diferencia del JS embebido). Requiere HTTPS y
+# que el usuario acepte el permiso del navegador.
+import streamlit_js_eval as st_js
+st.caption("📍 " + t("gps_hint"))
+geo = st_js.get_geolocation(key="geo_btn")
+if geo and isinstance(geo, dict) and geo.get("latitude") is not None:
+    lat = float(geo["latitude"]); lon = float(geo["longitude"])
+    location_query = f"{lat:.5f}, {lon:.5f}"
+    st.session_state["pending_city"] = location_query
+    st.rerun()
 
 search_button = st.button(t("search"), type="primary", use_container_width=True)
 # Si hay posicion GPS recien obtenida, buscamos con ella directamente
