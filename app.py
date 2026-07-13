@@ -336,7 +336,8 @@ def gmaps_link(r):
 # lateral y se guarda en st.session_state["lang"].
 # ---------------------------------------------------------------------------
 def t(key):
-    lang = st.session_state.get("lang", "es")
+    # App fijada a frances (uso en Francia). Sin selector de idioma.
+    lang = "fr"
     return I18N[lang].get(key, I18N["es"][key])
 
 
@@ -364,6 +365,8 @@ I18N = {
             "lo que SÍ existe."
         ),
         "dest_label": "📍 ¿Dónde almuerzas hoy? (ciudad/barrio en Francia):",
+        "dest_placeholder": "Escribe tu sitio: Paris, Lyon, Marsella…",
+        "quick_cities": "⚡ Ciudades rápidas (toque y busca):",
         "search": "🔍 Buscar",
         "radius": "📏 Radio de búsqueda (m):",
         "companion_q": "🧑‍🤝‍🧑 ¿Vas solo o acompañado?",
@@ -455,6 +458,8 @@ I18N = {
             "like Google. This index is a transparent proxy from what DOES exist."
         ),
         "dest_label": "📍 Where are you having lunch today? (city/district in France):",
+        "dest_placeholder": "Type your place: Paris, Lyon, Marseille…",
+        "quick_cities": "⚡ Quick cities (tap to search):",
         "search": "🔍 Search",
         "radius": "📏 Search radius (m):",
         "companion_q": "🧑‍🤝‍🧑 Solo or with company?",
@@ -548,6 +553,8 @@ I18N = {
             "EXISTE."
         ),
         "dest_label": "📍 Où déjeunes-tu aujourd'hui ? (ville/quartier en France) :",
+        "dest_placeholder": "Écris ton lieu : Paris, Lyon, Marseille…",
+        "quick_cities": "⚡ Villes rapides (tape et cherche) :",
         "search": "🔍 Chercher",
         "radius": "📏 Rayon de recherche (m) :",
         "companion_q": "🧑‍🤝‍🧑 Seul ou accompagné ?",
@@ -806,16 +813,8 @@ with st.expander("📱 " + t("add_to_home_hint_title"), expanded=False):
 with st.expander(t("how_header")):
     st.markdown(t("how_body"))
 
-# Selector de idioma en la barra lateral
+# Barra lateral: perfil movil (idioma fijado a frances, sin selector)
 with st.sidebar:
-    lang = st.selectbox(
-        t("lang_label"),
-        options=["es", "en", "fr"],
-        index=["es", "en", "fr"].index(st.session_state.get("lang", "es")),
-        format_func=lambda x: {"es": "🇪🇸 Español", "en": "🇬🇧 English",
-                                "fr": "🇫🇷 Français"}[x],
-    )
-    st.session_state["lang"] = lang
     st.header(t("perfil_header"))
     st.write(t("perfil_body"))
     st.write(t("consejo"))
@@ -825,13 +824,29 @@ with st.sidebar:
 if "resultados" not in st.session_state:
     st.session_state.resultados = None  # lista de restaurantes ya obtenidos
 
-col1, col2 = st.columns([3, 1])
-with col1:
-    location_query = st.text_input(
-        t("dest_label"),
-        value="Le Kremlin-Bicêtre, Île-de-France, Francia")
-with col2:
-    search_button = st.button(t("search"), type="primary")
+# Caja de busqueda destacada (sin valor por defecto: el usuario escribe el suyo)
+st.markdown(
+    "<div style='padding:14px 16px;border-radius:14px;"
+    "background:linear-gradient(135deg,#1f6f54,#2e8b57);color:white;"
+    "box-shadow:0 4px 14px rgba(0,0,0,.25);margin-bottom:14px'>"
+    f"<div style='font-size:20px;font-weight:800;margin-bottom:10px'>"
+    f"🍽️ {t('dest_label')}</div></div>",
+    unsafe_allow_html=True)
+location_query = st.text_input(
+    "",  # etiqueta ya en la caja destacada de arriba
+    key="location_query",
+    placeholder=t("dest_placeholder"))
+search_button = st.button(t("search"), type="primary", use_container_width=True)
+
+# Ciudades rapidas: un toque y busca (sin teclear acentos)
+QUICK = ["Paris", "Lyon", "Marseille", "Toulouse", "Nice", "Nantes"]
+st.caption(t("quick_cities"))
+qcols = st.columns(len(QUICK))
+for i, city in enumerate(QUICK):
+    with qcols[i]:
+        if st.button(city, key=f"quick_{i}", use_container_width=True):
+            st.session_state["location_query"] = city
+            search_button = True
 
 radius = st.slider(t("radius"), 500, 3000, 1200, 100)
 
