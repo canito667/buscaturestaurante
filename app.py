@@ -65,14 +65,21 @@ def get_coordinates(location_query):
 @st.cache_data(show_spinner=False)
 def geocode_help(location_query):
     """Igual que get_coordinates pero devuelve también hasta 5 alternativas
-    para que la UI proponga correcciones si la direccion esta mal/ambigua."""
-    try:
+    para que la UI proponga correcciones si la direccion esta mal/ambigua.
+    Reintenta una vez si Nominatim devuelve vacio (rate-limit transitorio del
+    servidor publico, frecuente en la nube que comparte IP)."""
+    def _fetch():
         params = {"q": location_query, "format": "json", "limit": 5,
                   "addressdetails": 1}
         resp = requests.get(NOMINATIM_URL, params=params,
                             headers=HEADERS, timeout=15)
         resp.raise_for_status()
-        data = resp.json()
+        return resp.json()
+    try:
+        data = _fetch()
+        if not data:  # posible rate-limit: espera y reintenta una vez
+            time.sleep(1.5)
+            data = _fetch()
         if not data:
             return None, None, "", []
         alts = [d.get("display_name", "") for d in data[1:6]]
@@ -890,6 +897,26 @@ if search_button:
         if lat is None:
             st.error(t("geo_none").format(q=query))
             st.info(t("geo_none_tip"))
+            # Sugiere buscar solo la calle (el numero a veces no esta en OSM)
+            # y permite reintentar de un toque.
+            partes = [p.strip() for p in query.split(",")]
+            if len(partes) > 1:  # forma "12, Rue X, Paris" -> quita la ciudad
+                solo_calle = ", ".join(partes[:-1])
+            else:  # forma "214 boulevard raspail paris" -> quita el nº inicial
+                toks = query.split()
+                solo_calle = " ".join(toks[1:]) if toks and toks[0].isdigit() else query
+            with st.expander("💡 Astuces si ça ne marche pas"):
+                st.write(
+                    "OpenStreetMap n'a pas ce numéro. Essaie le nom de la "
+                    f"rue seul, par ex. : **{solo_calle}**")
+                st.write(
+                    "Ou vérifie l'orthographe (le clavier du pouce ajoute "
+                    "parfois une faute). Texte envoyé : "
+                    f"`{query}`")
+            if st.button("↻ Réessayer", key="retry_geo_btn",
+                         use_container_width=True):
+                st.session_state["pending_city"] = query
+                st.rerun()
         else:
             # ¿El resultado parece Francia? Si no, advertir y proponer alternativas.
             es_francia = "france" in display_name.lower()
