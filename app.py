@@ -954,7 +954,7 @@ location_query = st.text_input(
 # que el usuario acepte el permiso del navegador.
 import streamlit_js_eval as st_js
 st.caption("📍 " + t("gps_hint"))
-geo = st_js.get_geolocation(key="geo_btn")
+geo = st_js.get_geolocation(component_key="geo_btn")
 if geo and isinstance(geo, dict) and geo.get("latitude") is not None:
     lat = float(geo["latitude"]); lon = float(geo["longitude"])
     location_query = f"{lat:.5f}, {lon:.5f}"
