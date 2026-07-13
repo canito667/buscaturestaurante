@@ -71,7 +71,7 @@ def geocode_help(location_query):
     'no encontrado' intermitentes. Respeta la politica: 1s entre peticiones."""
     def _fetch():
         params = {"q": location_query, "format": "json", "limit": 5,
-                  "addressdetails": 1}
+                  "addressdetails": 1, "countrycodes": "fr"}
         resp = requests.get(NOMINATIM_URL, params=params,
                             headers=HEADERS, timeout=15)
         resp.raise_for_status()
@@ -111,7 +111,8 @@ def geocode_suggestions(location_query, max_res=5):
         try:
             resp = requests.get(NOMINATIM_URL,
                                 params={"q": q, "format": "json",
-                                        "limit": 1, "addressdetails": 1},
+                                        "limit": 1, "addressdetails": 1,
+                                        "countrycodes": "fr"},
                                 headers=HEADERS, timeout=15)
             resp.raise_for_status()
             data = resp.json()
@@ -445,8 +446,8 @@ I18N = {
             "comentarios** tipo Google. Este índice es un proxy transparente con "
             "lo que SÍ existe."
         ),
-        "dest_label": "📍 ¿Dónde almuerzas hoy? (ciudad/barrio en Francia):",
-        "dest_placeholder": "Escribe tu sitio: Paris, Lyon, Marsella…",
+        "dest_label": "📍 ¿Dónde almuerzas hoy? (ciudad, código postal o dirección en Francia):",
+        "dest_placeholder": "Ej: Paris, 75011, o 3 bis rue Pasteur 94270",
         "quick_cities": "⚡ Ciudades rápidas (toque y busca):",
         "search": "🔍 Buscar",
         "radius": "📏 Radio de búsqueda (m):",
@@ -538,8 +539,8 @@ I18N = {
             "> Honest note: OpenStreetMap in France **has no stars or reviews** "
             "like Google. This index is a transparent proxy from what DOES exist."
         ),
-        "dest_label": "📍 Where are you having lunch today? (city/district in France):",
-        "dest_placeholder": "Type your place: Paris, Lyon, Marseille…",
+        "dest_label": "📍 Where are you having lunch today? (city, postal code or address in France):",
+        "dest_placeholder": "e.g. Paris, 75011, or 3 bis rue Pasteur 94270",
         "quick_cities": "⚡ Quick cities (tap to search):",
         "search": "🔍 Search",
         "radius": "📏 Search radius (m):",
@@ -633,8 +634,8 @@ I18N = {
             "comme Google. Cet index est un proxy transparent à partir de ce qui "
             "EXISTE."
         ),
-        "dest_label": "📍 Où déjeunes-tu aujourd'hui ? (ville/quartier en France) :",
-        "dest_placeholder": "Écris ton lieu : Paris, Lyon, Marseille…",
+        "dest_label": "📍 Où déjeunes-tu aujourd'hui ? (ville, code postal ou adresse en France) :",
+        "dest_placeholder": "Ex : Paris, 75011, ou 3 bis rue Pasteur 94270",
         "quick_cities": "⚡ Villes rapides (tape et cherche) :",
         "search": "🔍 Chercher",
         "radius": "📏 Rayon de recherche (m) :",
@@ -916,7 +917,37 @@ location_query = st.text_input(
     "",  # etiqueta ya en la caja destacada de arriba
     key="location_query",
     placeholder=t("dest_placeholder"))
+
+# Boton "Cerca de mi" (GPS del navegador). Streamlit no accede al GPS
+# directamente, pero un componente HTML puede pedir la geolocalizacion y
+# devolver lat/lon a Python via Streamlit.setComponentValue. Requiere HTTPS
+# (la nube lo es) y que el usuario acepte el permiso del navegador.
+import streamlit.components.v1 as components
+import os as _os
+_gps_path = _os.path.join(_os.path.dirname(__file__), "gps_component")
+_gps_component = components.declare_component("gps_picker", path=_gps_path)
+
+def gps_picker():
+    """Boton HTML que pide el GPS al navegador y devuelve {'lat':..,'lon':..}
+    o None, via Streamlit.setComponentValue."""
+    return _gps_component()
+
+gps_val = gps_picker()
+if gps_val and isinstance(gps_val, dict) and "lat" in gps_val:
+    st.session_state["_gps_lat"] = gps_val["lat"]
+    st.session_state["_gps_lon"] = gps_val["lon"]
+    st.rerun()  # vuelve a ejecutar para disparar la busqueda con el GPS
+
 search_button = st.button(t("search"), type="primary", use_container_width=True)
+# Si hay posicion GPS recien obtenida, buscamos con ella directamente
+gps_lat = st.session_state.get("_gps_lat")
+gps_lon = st.session_state.get("_gps_lon")
+if gps_lat is not None and gps_lon is not None and not location_query.strip():
+    location_query = f"{gps_lat:.5f}, {gps_lon:.5f}"
+    st.session_state["pending_city"] = location_query
+    search_button = True
+    st.session_state["_gps_lat"] = None
+    st.session_state["_gps_lon"] = None
 
 radius = st.slider(t("radius"), 500, 3000, 1200, 100)
 
