@@ -90,6 +90,73 @@ def geocode_help(location_query):
         return None, None, "", []
 
 
+def geocode_suggestions(location_query, max_res=5):
+    """Si la busqueda directa falla, prueba variantes similares y devuelve
+    hasta `max_res` candidatos validos (lat, lon, display_name) para que el
+    usuario elija. Variantes: sin el numero inicial, calle + Paris (la app es
+    para Francia), sin acentos, solo ciudad, y añadir una 'l' al final de la
+    ultima palabra (corrige el dedo: 'raspai' -> 'raspail'). Prioriza Francia.
+    """
+    def _norm(s):
+        import unicodedata
+        return "".join(c for c in unicodedata.normalize("NFD", s)
+                       if unicodedata.category(c) != "Mn")
+    def _fetch(q):
+        try:
+            resp = requests.get(NOMINATIM_URL,
+                                params={"q": q, "format": "json",
+                                        "limit": 1, "addressdetails": 1},
+                                headers=HEADERS, timeout=15)
+            resp.raise_for_status()
+            data = resp.json()
+            if data:
+                top = data[0]
+                return (float(top["lat"]), float(top["lon"]),
+                        top.get("display_name", q),
+                        "france" in top.get("display_name", "").lower())
+        except Exception:
+            pass
+        return None
+    variants = []
+    toks = location_query.split()
+    if toks and toks[0].isdigit():               # "214 boulevard raspail paris"
+        variants.append(" ".join(toks[1:]))       # "boulevard raspail paris"
+    if "," in location_query:                     # "12, rue x, paris"
+        partes = [p.strip() for p in location_query.split(",")]
+        variants.append(", ".join(partes[:-1]))
+        variants.append(partes[-1])
+    last = toks[-1] if toks else ""
+    # corrige el dedo: si la ultima palabra es larga y acaba en vocal, prueba
+    # añadiendo 'l' ('raspai' -> 'raspail', 'hotela' -> 'hotel'). No si es
+    # ciudad conocida de Francia (evita 'parisl', 'lyonl'...).
+    CIUDADES = {"paris", "lyon", "marseille", "toulouse", "nice",
+                "nantes", "lille", "bordeaux", "strasbourg", "rennes"}
+    if (last and last[-1].lower() in "aeiouy" and len(last) >= 4
+            and last.lower() not in CIUDADES):
+        variants.append(" ".join(toks[:-1] + [last + "l"]))
+    # fuerza Paris (la app es para Francia) si no habia ciudad
+    if "paris" not in location_query.lower() and last:
+        variants.append(" ".join(toks[:-1] + [last, "Paris"]))
+    variants.append(_norm(location_query))        # sin acentos
+    variants.append(last)                          # solo la ciudad
+    # quita duplicados manteniendo orden
+    seen, uniq = set(), []
+    for v in variants:
+        v = v.strip()
+        if v and v.lower() not in seen:
+            seen.add(v.lower())
+            uniq.append(v)
+    france, other = [], []
+    for v in uniq:
+        if len(france) + len(other) >= max_res:
+            break
+        r = _fetch(v)
+        if r:
+            (france if r[3] else other).append((r[0], r[1], r[2]))
+    # prioriza Francia; rellena con otros si no hay suficientes
+    return (france + other)[:max_res]
+
+
 @st.cache_data(show_spinner=False)
 def get_restaurants_nearby(lat, lon, radius=1500):
     query = f"""
@@ -897,6 +964,19 @@ if search_button:
                     "Ou vérifie l'orthographe (le clavier du pouce ajoute "
                     "parfois une faute). Texte envoyé : "
                     f"`{query}`")
+            # Busca variantes similares y las propone para que elijas
+            sugs = geocode_suggestions(query)
+            if sugs:
+                st.markdown("### 🔎 Pas trouvé ? Essaie l'une de celles-ci :")
+                for i, (slat, slon, sname) in enumerate(sugs):
+                    if st.button(sname, key=f"sug_{i}",
+                                 use_container_width=True):
+                        st.session_state["geo_candidato"] = (slat, slon, sname)
+                        st.session_state["geo_alts"] = []
+                        st.session_state.resultados = get_restaurants_nearby(
+                            slat, slon, radius=radius)
+                        st.session_state.display_name = sname
+                        st.rerun()
             if st.button("↻ Réessayer", key="retry_geo_btn",
                          use_container_width=True):
                 st.session_state["pending_city"] = query
