@@ -93,23 +93,31 @@ def get_restaurants_nearby(lat, lon, radius=1500):
     );
     out center 300;
     """
-    # Overpass a veces responde 429 (rate limit). Reintentamos con espera.
+    # Overpass es un servidor publico y a veces se satura (429 rate limit,
+    # o 500/502/503/504 errores de gateway). Reintentamos ante todos esos
+    # con espera creciente, para que el usuario no vea un error en seco.
+    RETRIABLE = {429, 500, 502, 503, 504}
     elements = None
-    for intento in range(3):
+    for intento in range(4):
         try:
             resp = requests.post(OVERPASS_URL, data={"data": query},
-                                headers=HEADERS, timeout=30)
-            if resp.status_code == 429:
-                time.sleep(3 * (intento + 1))
+                                headers=HEADERS, timeout=40)
+            if resp.status_code in RETRIABLE:
+                if intento == 3:
+                    st.exception(RuntimeError(
+                        f"Overpass no responde (HTTP {resp.status_code}). "
+                        f"Reintenta en unos segundos."))
+                    return []
+                time.sleep(4 * (intento + 1))
                 continue
             resp.raise_for_status()
             elements = resp.json().get("elements", [])
             break
         except Exception as e:
-            if intento == 2:
+            if intento == 3:
                 st.exception(e)
                 return []
-            time.sleep(3 * (intento + 1))
+            time.sleep(4 * (intento + 1))
 
     out = []
     for el in (elements or []):
