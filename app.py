@@ -66,8 +66,9 @@ def get_coordinates(location_query):
 def geocode_help(location_query):
     """Igual que get_coordinates pero devuelve también hasta 5 alternativas
     para que la UI proponga correcciones si la direccion esta mal/ambigua.
-    Reintenta una vez si Nominatim devuelve vacio (rate-limit transitorio del
-    servidor publico, frecuente en la nube que comparte IP)."""
+    Reintenta con espera creciente: Nominatim es un servidor publico sin API
+    key y en la nube (IP compartida) aplica rate-limit, lo que causa los
+    'no encontrado' intermitentes. Respeta la politica: 1s entre peticiones."""
     def _fetch():
         params = {"q": location_query, "format": "json", "limit": 5,
                   "addressdetails": 1}
@@ -75,11 +76,14 @@ def geocode_help(location_query):
                             headers=HEADERS, timeout=15)
         resp.raise_for_status()
         return resp.json()
+    time.sleep(1.0)  # politica Nominatim: maximo 1 peticion/segundo
     try:
-        data = _fetch()
-        if not data:  # posible rate-limit: espera y reintenta una vez
-            time.sleep(1.5)
+        for intento in range(4):
             data = _fetch()
+            if data:
+                break
+            # vacio -> probable rate-limit: espera creciente y reintenta
+            time.sleep(1.5 * (intento + 1))
         if not data:
             return None, None, "", []
         alts = [d.get("display_name", "") for d in data[1:6]]
@@ -93,15 +97,17 @@ def geocode_help(location_query):
 def geocode_suggestions(location_query, max_res=5):
     """Si la busqueda directa falla, prueba variantes similares y devuelve
     hasta `max_res` candidatos validos (lat, lon, display_name) para que el
-    usuario elija. Variantes: sin el numero inicial, calle + Paris (la app es
-    para Francia), sin acentos, solo ciudad, y añadir una 'l' al final de la
-    ultima palabra (corrige el dedo: 'raspai' -> 'raspail'). Prioriza Francia.
+    usuario elija. Variantes: sin el numero (maneja '3 bis'/'3ter'), calle +
+    Paris (la app es para Francia), sin acentos, solo ciudad, y añadir una 'l'
+    al final de la ultima palabra (corrige el dedo: 'raspai' -> 'raspail').
+    Prioriza Francia y respeta el rate-limit de Nominatim (1s entre llamadas).
     """
     def _norm(s):
         import unicodedata
         return "".join(c for c in unicodedata.normalize("NFD", s)
                        if unicodedata.category(c) != "Mn")
     def _fetch(q):
+        time.sleep(1.0)  # politica Nominatim: 1 peticion/segundo
         try:
             resp = requests.get(NOMINATIM_URL,
                                 params={"q": q, "format": "json",
@@ -117,25 +123,26 @@ def geocode_suggestions(location_query, max_res=5):
         except Exception:
             pass
         return None
-    variants = []
+    # quita el numero inicial, incluido sufijo 'bis'/'ter'/'b'/'ter'
     toks = location_query.split()
-    if toks and toks[0].isdigit():               # "214 boulevard raspail paris"
-        variants.append(" ".join(toks[1:]))       # "boulevard raspail paris"
+    cuerpo = toks[1:] if (toks and toks[0].isdigit()) else toks
+    if cuerpo and cuerpo[0].lower() in ("bis", "ter", "b", "ter", "quater"):
+        cuerpo = cuerpo[1:]
+    variants = []
+    if cuerpo:                                  # "rue Pasteur 94270"
+        variants.append(" ".join(cuerpo))
     if "," in location_query:                     # "12, rue x, paris"
         partes = [p.strip() for p in location_query.split(",")]
         variants.append(", ".join(partes[:-1]))
         variants.append(partes[-1])
     last = toks[-1] if toks else ""
-    # corrige el dedo: si la ultima palabra es larga y acaba en vocal, prueba
-    # añadiendo 'l' ('raspai' -> 'raspail', 'hotela' -> 'hotel'). No si es
-    # ciudad conocida de Francia (evita 'parisl', 'lyonl'...).
+    # corrige el dedo: ultima palabra larga acabada en vocal -> añade 'l'
     CIUDADES = {"paris", "lyon", "marseille", "toulouse", "nice",
                 "nantes", "lille", "bordeaux", "strasbourg", "rennes"}
     if (last and last[-1].lower() in "aeiouy" and len(last) >= 4
             and last.lower() not in CIUDADES):
         variants.append(" ".join(toks[:-1] + [last + "l"]))
-    # fuerza Paris (la app es para Francia) si no habia ciudad
-    if "paris" not in location_query.lower() and last:
+    if "paris" not in location_query.lower() and last:   # fuerza Paris
         variants.append(" ".join(toks[:-1] + [last, "Paris"]))
     variants.append(_norm(location_query))        # sin acentos
     variants.append(last)                          # solo la ciudad
@@ -153,8 +160,8 @@ def geocode_suggestions(location_query, max_res=5):
         r = _fetch(v)
         if r:
             (france if r[3] else other).append((r[0], r[1], r[2]))
-    # prioriza Francia; rellena con otros si no hay suficientes
     return (france + other)[:max_res]
+
 
 
 @st.cache_data(show_spinner=False)
