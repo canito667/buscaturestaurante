@@ -814,12 +814,6 @@ st.markdown(
     """,
     unsafe_allow_html=True)
 
-with st.expander("📱 " + t("add_to_home_hint_title"), expanded=False):
-    st.markdown(t("add_to_home_hint"))
-
-with st.expander(t("how_header")):
-    st.markdown(t("how_body"))
-
 # Barra lateral: perfil movil (idioma fijado a frances, sin selector)
 with st.sidebar:
     st.header(t("perfil_header"))
