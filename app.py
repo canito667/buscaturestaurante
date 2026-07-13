@@ -944,46 +944,20 @@ location_query = st.text_input(
     key="location_query",
     placeholder=t("dest_placeholder"))
 
-# Boton "Cerca de mi" (GPS del navegador). En Streamlit Cloud los componentes
-# locales (declare_component) NO sirven el HTML fiablemente, asi que usamos
-# usamos components.html (que si funciona en la nube) y escribimos lat,lon en
-# un text_input oculto: al cambiar el widget, Streamlit reacciona y la app lee.
+# Boton "Cerca de mi" (GPS del navegador). Usamos un componente local
+# (declare_component con path) que NO esta deprecado (a diferencia de
+# components.html). El index.html pide el GPS y devuelve lat,lon via
+# Streamlit.setComponentValue. Requiere HTTPS (la nube lo es) y permiso.
 import streamlit.components.v1 as components
+import os as _os
+_gps_path = _os.path.join(_os.path.dirname(__file__), "gps_component")
+_gps_component = components.declare_component("gps_picker", path=_gps_path)
 
-gps_html = """
-<script>
-function pedirGPS(){
-  var m=document.getElementById('gpsmsg');
-  if(!navigator.geolocation){m.textContent='GPS no soportado';return;}
-  m.textContent='Permite el acceso a tu ubicación…';
-  navigator.geolocation.getCurrentPosition(
-    function(p){
-      var inp=window.parent.document.querySelector('input[id*="gps_coord"]');
-      if(inp){inp.value=p.coords.latitude.toFixed(5)+','+p.coords.longitude.toFixed(5);
-        var ev=new Event('input',{bubbles:true});inp.dispatchEvent(ev);}
-      m.textContent='Ubicación obtenida ✅';
-    },
-    function(e){m.textContent='No se pudo obtener el GPS: '+e.message;});
-}
-</script>
-<button onclick="pedirGPS()" style="font-size:17px;min-height:44px;width:100%;
-  border:none;border-radius:8px;background:#1f6f54;color:#fff;cursor:pointer">
-  📍 Cerca de mí (GPS)</button>
-<div id="gpsmsg" style="font-size:13px;margin-top:6px;color:#333"></div>
-"""
-components.html(gps_html, height=80)
-
-# Campo oculto donde el JS escribe "lat, lon"; lo leemos como trigger de busqueda
-gps_coord = st.text_input("", key="gps_coord", placeholder="",
-                           label_visibility="collapsed")
-if gps_coord and "," in gps_coord:
-    try:
-        la, lo = gps_coord.split(",")
-        st.session_state["_gps_lat"] = float(la)
-        st.session_state["_gps_lon"] = float(lo)
-        st.rerun()
-    except Exception:
-        pass
+gps_val = _gps_component(height=80)
+if gps_val and isinstance(gps_val, dict) and "lat" in gps_val:
+    st.session_state["_gps_lat"] = gps_val["lat"]
+    st.session_state["_gps_lon"] = gps_val["lon"]
+    st.rerun()  # vuelve a ejecutar para disparar la busqueda con el GPS
 
 search_button = st.button(t("search"), type="primary", use_container_width=True)
 # Si hay posicion GPS recien obtenida, buscamos con ella directamente

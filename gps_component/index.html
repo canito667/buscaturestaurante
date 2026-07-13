@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    .gp{font-size:17px;min-height:44px;width:100%;border:none;
+        border-radius:8px;background:#1f6f54;color:#fff;cursor:pointer}
+    #msg{font-size:13px;margin-top:6px;color:#333}
+  </style>
+</head>
+<body>
+  <button class="gp" onclick="pedirGPS()">📍 Cerca de mí (GPS)</button>
+  <div id="msg"></div>
+  <script>
+    // Streamlit inyecta window.Streamlit al servir este componente via
+    // declare_component(path=...). Avisamos que ya cargo.
+    window.Streamlit.setComponentValue(null);
+
+    function pedirGPS(){
+      const m = document.getElementById('msg');
+      if (!navigator.geolocation){ m.textContent='GPS no soportado'; return; }
+      m.textContent='Permite el acceso a tu ubicación…';
+      navigator.geolocation.getCurrentPosition(
+        p => { window.Streamlit.setComponentValue(
+                 {lat:p.coords.latitude, lon:p.coords.longitude});
+               m.textContent='Ubicación obtenida ✅'; },
+        e => { m.textContent='No se pudo obtener el GPS: '+e.message; });
+    }
+  </script>
+</body>
+</html>
