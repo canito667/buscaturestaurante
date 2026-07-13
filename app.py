@@ -873,7 +873,6 @@ if search_button:
                 st.session_state["geo_candidato"] = (lat, lon, display_name)
                 st.session_state["geo_alts"] = []
                 st.success(f"✅ {display_name}")
-                st.map({"latitude": [lat], "longitude": [lon]}, zoom=13)
                 with st.spinner(t("osm")):
                     time.sleep(1.0)
                     st.session_state.resultados = get_restaurants_nearby(
@@ -889,7 +888,6 @@ if st.session_state.get("geo_alts"):
     if col_a.button(t("geo_yes"), key="geo_yes_btn"):
         st.session_state["geo_alts"] = []
         st.success(t("geo_keep"))
-        st.map({"latitude": [cand[0]], "longitude": [cand[1]]}, zoom=13)
         with st.spinner(t("osm")):
             time.sleep(1.0)
             st.session_state.resultados = get_restaurants_nearby(
@@ -959,42 +957,36 @@ else:
 
         for r in candidatos[:20]:
             with st.container():
-                c1, c2 = st.columns([3, 1])
-                with c1:
-                    st.subheader(f"{r['nombre']}  ·  {r['_score']}/100")
-                    st.write(t("cuisine_idx").format(c=r["cocina"], s=r["_score"]))
-                    if r["direccion"] and r["direccion"] != "Dirección no disponible":
-                        st.write(t("address").format(d=r["direccion"]))
-                    else:
-                        st.write(t("address_na"))
-                    st.markdown(t("gmaps").format(url=gmaps_link(r)))
-                    st.write(t("schedule").format(h=r["horario"]))
-                    with st.expander(t("why_note")):
-                        for razon in r.get("_razones", []):
-                            st.write(f"- {razon}")
-                    b = t("badges")
-                    badges = []
-                    if r["takeaway"] in ("yes", "only"):
-                        badges.append(b["llevar"])
-                    if r["vegan"]:
-                        badges.append(b["vegano"])
-                    elif r["vegetarian"]:
-                        badges.append(b["vegetariano"])
-                    if r["outdoor"]:
-                        badges.append(b["terraza"])
-                    if r["indoor"]:
-                        badges.append(b["salon"])
-                    if r["wheelchair"]:
-                        badges.append(b["accesible"])
-                    if r["website"]:
-                        badges.append(b["web"])
-                    if r["check_date"]:
-                        badges.append(b["verif"].format(
-                            d=str(r["check_date"])[:10]))
-                    if badges:
-                        st.caption(" · ".join(badges))
-                with c2:
-                    if r["lat"] and r["lon"]:
-                        st.map({"latitude": [r["lat"]], "longitude": [r["lon"]]},
-                               zoom=15, width="stretch")
+                st.subheader(f"{r['nombre']}  ·  {r['_score']}/100")
+                st.write(t("cuisine_idx").format(c=r["cocina"], s=r["_score"]))
+                if r["direccion"] and r["direccion"] != "Dirección no disponible":
+                    st.write(t("address").format(d=r["direccion"]))
+                else:
+                    st.write(t("address_na"))
+                st.markdown(t("gmaps").format(url=gmaps_link(r)))
+                st.write(t("schedule").format(h=r["horario"]))
+                with st.expander(t("why_note")):
+                    for razon in r.get("_razones", []):
+                        st.write(f"- {razon}")
+                b = t("badges")
+                badges = []
+                if r["takeaway"] in ("yes", "only"):
+                    badges.append(b["llevar"])
+                if r["vegan"]:
+                    badges.append(b["vegano"])
+                elif r["vegetarian"]:
+                    badges.append(b["vegetariano"])
+                if r["outdoor"]:
+                    badges.append(b["terraza"])
+                if r["indoor"]:
+                    badges.append(b["salon"])
+                if r["wheelchair"]:
+                    badges.append(b["accesible"])
+                if r["website"]:
+                    badges.append(b["web"])
+                if r["check_date"]:
+                    badges.append(b["verif"].format(
+                        d=str(r["check_date"])[:10]))
+                if badges:
+                    st.caption(" · ".join(badges))
                 st.divider()
