@@ -33,6 +33,7 @@ except Exception:
 
 HEADERS = {"User-Agent": "BuscaTuRestauranteApp/1.0 (demo almuerzo Francia)"}
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+PHOTON_URL = "https://photon.komoot.io/api/"   # open source, OSM, sin API key
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
 UTIL_TAGS = [  # etiquetas que indican una ficha "cuidada" por la comunidad
@@ -62,41 +63,69 @@ def get_coordinates(location_query):
         return None, None, ""
 
 
+def _photon(q, limit=5):
+    """Geocodifica con Photon (komoot, open source, OSM, sin API key ni
+    rate-limit duro). Devuelve lista de (lat, lon, display_name, es_francia)."""
+    try:
+        resp = requests.get(PHOTON_URL, params={"q": q, "limit": limit},
+                            headers=HEADERS, timeout=15)
+        resp.raise_for_status()
+        feats = resp.json().get("features", [])
+        out = []
+        for f in feats:
+            c = f["geometry"]["coordinates"]
+            p = f["properties"]
+            name = p.get("name") or ""
+            parts = [x for x in (p.get("street"), p.get("housenumber"),
+                     p.get("postcode"), p.get("city"), p.get("country")) if x]
+            label = (name + ", " if name else "") + ", ".join(parts)
+            out.append((float(c[1]), float(c[0]), label,
+                        "france" in (p.get("country", "").lower())))
+        return out
+    except Exception:
+        return []
+
+
 @st.cache_data(show_spinner=False)
 def geocode_help(location_query):
-    """Igual que get_coordinates pero devuelve también hasta 5 alternativas
-    para que la UI proponga correcciones si la direccion esta mal/ambigua.
-    Reintenta con espera creciente: Nominatim es un servidor publico sin API
-    key y en la nube (IP compartida) aplica rate-limit, lo que causa los
-    'no encontrado' intermitentes. Respeta la politica: 1s entre peticiones.
-    Si el texto son 5 digitos, busca como codigo postal frances."""
+    """Devuelve (lat, lon, display_name, [alternativas]) para la busqueda.
+    Usa Photon como fuente principal (open source, OSM, sin rate-limit duro)
+    y Nominatim como respaldo si Photon falla. Filtra a Francia. Si el texto
+    son 5 digitos, lo trata como codigo postal frances."""
     q = location_query.strip()
-    postal = None
-    if q.isdigit() and len(q) == 5:
-        postal = q  # codigo postal frances (ej: 75014)
-    def _fetch():
+    # 1) Photon (principal)
+    res = _photon(q, limit=5)
+    if res:
+        france = [r for r in res if r[3]]
+        top_list = france or res
+        top = top_list[0]
+        alts = [r[2] for r in top_list[1:6]]
+        return (top[0], top[1], top[2], alts)
+    # 2) Respaldo Nominatim (postalcode si 5 digitos)
+    postal = q if (q.isdigit() and len(q) == 5) else None
+    def _nom():
         if postal:
             params = {"postalcode": postal, "country": "France",
                       "format": "json", "limit": 5, "addressdetails": 1}
         else:
             params = {"q": q, "format": "json", "limit": 5,
                       "addressdetails": 1, "countrycodes": "fr"}
-        resp = requests.get(NOMINATIM_URL, params=params,
-                            headers=HEADERS, timeout=15)
-        resp.raise_for_status()
-        return resp.json()
-    time.sleep(1.0)  # politica Nominatim: maximo 1 peticion/segundo
+        r = requests.get(NOMINATIM_URL, params=params,
+                         headers=HEADERS, timeout=15)
+        r.raise_for_status()
+        return r.json()
+    time.sleep(1.0)  # politica Nominatim: 1 peticion/segundo
     try:
         for intento in range(6):
-            data = _fetch()
+            data = _nom()
             if data:
                 break
-            # vacio -> probable rate-limit: espera creciente y reintenta
             time.sleep(1.5 * (intento + 1))
         if not data:
             return None, None, "", []
-        alts = [d.get("display_name", "") for d in data[1:6]]
-        top = data[0]
+        fr = [d for d in data if "france" in d.get("display_name", "").lower()]
+        top = (fr or data)[0]
+        alts = [d.get("display_name", "") for d in (fr or data)[1:6]]
         return (float(top["lat"]), float(top["lon"]),
                 top.get("display_name", q), alts)
     except Exception:
@@ -116,22 +145,10 @@ def geocode_suggestions(location_query, max_res=5):
         return "".join(c for c in unicodedata.normalize("NFD", s)
                        if unicodedata.category(c) != "Mn")
     def _fetch(q):
-        time.sleep(1.0)  # politica Nominatim: 1 peticion/segundo
-        try:
-            resp = requests.get(NOMINATIM_URL,
-                                params={"q": q, "format": "json",
-                                        "limit": 1, "addressdetails": 1,
-                                        "countrycodes": "fr"},
-                                headers=HEADERS, timeout=15)
-            resp.raise_for_status()
-            data = resp.json()
-            if data:
-                top = data[0]
-                return (float(top["lat"]), float(top["lon"]),
-                        top.get("display_name", q),
-                        "france" in top.get("display_name", "").lower())
-        except Exception:
-            pass
+        # Photon (open source, OSM, sin rate-limit duro) en vez de Nominatim
+        ph = _photon(q, limit=1)
+        if ph:
+            return ph[0][0], ph[0][1], ph[0][2], ph[0][3]
         return None
     # quita el numero inicial, incluido sufijo 'bis'/'ter'/'b'/'ter'
     toks = location_query.split()
@@ -927,26 +944,46 @@ location_query = st.text_input(
     key="location_query",
     placeholder=t("dest_placeholder"))
 
-# Boton "Cerca de mi" (GPS del navegador). Streamlit no accede al GPS
-# directamente, pero un componente HTML puede pedir la geolocalizacion y
-# devolver lat/lon a Python via Streamlit.setComponentValue. Requiere HTTPS
-# (la nube lo es) y que el usuario acepte el permiso del navegador.
+# Boton "Cerca de mi" (GPS del navegador). En Streamlit Cloud los componentes
+# locales (declare_component) NO sirven el HTML fiablemente, asi que usamos
+# usamos components.html (que si funciona en la nube) y escribimos lat,lon en
+# un text_input oculto: al cambiar el widget, Streamlit reacciona y la app lee.
 import streamlit.components.v1 as components
-import os as _os
-_gps_path = _os.path.join(_os.path.dirname(__file__), "gps_component")
-_gps_component = components.declare_component("gps_picker", path=_gps_path)
 
-def gps_picker():
-    """Boton HTML que pide el GPS al navegador y devuelve {'lat':..,'lon':..}
-    o None, via Streamlit.setComponentValue. height explicito: si no, el iframe
-    queda a 0px y el boton es invisible."""
-    return _gps_component(height=64)
+gps_html = """
+<script>
+function pedirGPS(){
+  var m=document.getElementById('gpsmsg');
+  if(!navigator.geolocation){m.textContent='GPS no soportado';return;}
+  m.textContent='Permite el acceso a tu ubicación…';
+  navigator.geolocation.getCurrentPosition(
+    function(p){
+      var inp=window.parent.document.querySelector('input[id*="gps_coord"]');
+      if(inp){inp.value=p.coords.latitude.toFixed(5)+','+p.coords.longitude.toFixed(5);
+        var ev=new Event('input',{bubbles:true});inp.dispatchEvent(ev);}
+      m.textContent='Ubicación obtenida ✅';
+    },
+    function(e){m.textContent='No se pudo obtener el GPS: '+e.message;});
+}
+</script>
+<button onclick="pedirGPS()" style="font-size:17px;min-height:44px;width:100%;
+  border:none;border-radius:8px;background:#1f6f54;color:#fff;cursor:pointer">
+  📍 Cerca de mí (GPS)</button>
+<div id="gpsmsg" style="font-size:13px;margin-top:6px;color:#333"></div>
+"""
+components.html(gps_html, height=80)
 
-gps_val = gps_picker()
-if gps_val and isinstance(gps_val, dict) and "lat" in gps_val:
-    st.session_state["_gps_lat"] = gps_val["lat"]
-    st.session_state["_gps_lon"] = gps_val["lon"]
-    st.rerun()  # vuelve a ejecutar para disparar la busqueda con el GPS
+# Campo oculto donde el JS escribe "lat, lon"; lo leemos como trigger de busqueda
+gps_coord = st.text_input("", key="gps_coord", placeholder="",
+                           label_visibility="collapsed")
+if gps_coord and "," in gps_coord:
+    try:
+        la, lo = gps_coord.split(",")
+        st.session_state["_gps_lat"] = float(la)
+        st.session_state["_gps_lon"] = float(lo)
+        st.rerun()
+    except Exception:
+        pass
 
 search_button = st.button(t("search"), type="primary", use_container_width=True)
 # Si hay posicion GPS recien obtenida, buscamos con ella directamente
