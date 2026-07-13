@@ -824,6 +824,11 @@ with st.sidebar:
 if "resultados" not in st.session_state:
     st.session_state.resultados = None  # lista de restaurantes ya obtenidos
 
+# Ciudad elegida con un boton rapido (no escribimos en el widget de texto,
+# porque Streamlit no permite asignar a la clave de un widget ya creado).
+if "pending_city" not in st.session_state:
+    st.session_state.pending_city = ""
+
 # Caja de busqueda destacada (sin valor por defecto: el usuario escribe el suyo)
 st.markdown(
     "<div style='padding:14px 16px;border-radius:14px;"
@@ -845,7 +850,7 @@ qcols = st.columns(len(QUICK))
 for i, city in enumerate(QUICK):
     with qcols[i]:
         if st.button(city, key=f"quick_{i}", use_container_width=True):
-            st.session_state["location_query"] = city
+            st.session_state["pending_city"] = city
             search_button = True
 
 radius = st.slider(t("radius"), 500, 3000, 1200, 100)
@@ -868,20 +873,22 @@ diet_key = {t("diet_none"): None, t("diet_veg"): "vegetarian",
 
 # --- BÚSQUEDA EN RED: solo al pulsar "Buscar" (no en cada cambio de filtro) ---
 if search_button:
-    if not location_query.strip():
+    # Usa lo que haya tecleado el usuario, o la ciudad del boton rapido.
+    query = location_query.strip() or st.session_state.get("pending_city", "")
+    if not query:
         st.warning(t("enter_loc"))
     else:
-        with st.spinner(t("searching").format(q=location_query)):
-            lat, lon, display_name, alts = geocode_help(location_query.strip())
+        with st.spinner(t("searching").format(q=query)):
+            lat, lon, display_name, alts = geocode_help(query)
 
         if lat is None:
-            st.error(t("geo_none").format(q=location_query))
+            st.error(t("geo_none").format(q=query))
             st.info(t("geo_none_tip"))
         else:
             # ¿El resultado parece Francia? Si no, advertir y proponer alternativas.
             es_francia = "france" in display_name.lower()
             if not es_francia and alts:
-                st.warning(t("geo_lowprec").format(q=location_query))
+                st.warning(t("geo_lowprec").format(q=query))
                 st.session_state["geo_candidato"] = (lat, lon, display_name)
                 st.session_state["geo_alts"] = alts
             else:
