@@ -770,10 +770,10 @@ st.title(t("title"))
 st.subheader(t("subtitle"))
 
 # --- Adaptación móvil / Safari / "Añadir a pantalla de inicio" ---
-# Solo <style>: Streamlit ya incluye el meta viewport por defecto. Dejar el
-# <style> solo (sin <meta> pegado) evita que el parser de markdown lo muestre
-# como texto. Selectores actualizados a Streamlit 1.x (los de "reportview"
-# ya no existen y no aplicaban).
+# Solo el bloque style (sin etiqueta meta pegada delante): Streamlit ya
+# incluye el viewport por defecto. Dejar el style aislado evita que el parser
+# de markdown lo muestre como texto. Selectores actualizados a Streamlit 1.x
+# (los de "reportview" ya no existen y no aplicaban).
 st.markdown(
     """
     <style>
