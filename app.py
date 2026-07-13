@@ -452,7 +452,7 @@ def t(key):
 I18N = {
     "es": {
         "lang_label": "🌐 Idioma",
-        "title": "🍽️ BuscaTuRestaurante · Decisión rápida para almuerzo",
+        "title": "🍽️ Daniel, señor duerme más — Almuerza ya, que yo elijo por ti",
         "subtitle": "Dejas de decir «no sé»: te proponemos buenas opciones en "
                     "Francia, ordenadas por lo que la comunidad recomienda de verdad",
         "how_header": "ℹ️ ¿Cómo funciona?",
@@ -546,7 +546,7 @@ I18N = {
     },
     "en": {
         "lang_label": "🌐 Language",
-        "title": "🍽️ FindYourRestaurant · Quick lunch decision",
+        "title": "🍽️ Daniel, señor duerme más — Déjeune vite, je choisis pour toi",
         "subtitle": "Stop saying \"I don't know\": we suggest good options in "
                     "France, ranked by what the community really recommends",
         "how_header": "ℹ️ How it works",
@@ -639,7 +639,7 @@ I18N = {
     },
     "fr": {
         "lang_label": "🌐 Langue",
-        "title": "🍽️ TrouveTonResto · Décision rapide pour le déjeuner",
+        "title": "🍽️ Daniel, señor duerme más — Déjeune vite, je choisis pour toi",
         "subtitle": "Arrête de dire «je sais pas» : on te propose de bonnes "
                     "options en France, classées par ce que la communauté recommande vraiment",
         "how_header": "ℹ️ Comment ça marche",
@@ -944,20 +944,47 @@ location_query = st.text_input(
     key="location_query",
     placeholder=t("dest_placeholder"))
 
-# Boton "Cerca de mi" (GPS del navegador). Usamos un componente local
-# (declare_component con path) que NO esta deprecado (a diferencia de
-# components.html). El index.html pide el GPS y devuelve lat,lon via
-# Streamlit.setComponentValue. Requiere HTTPS (la nube lo es) y permiso.
-import streamlit.components.v1 as components
-import os as _os
-_gps_path = _os.path.join(_os.path.dirname(__file__), "gps_component")
-_gps_component = components.declare_component("gps_picker", path=_gps_path)
+# Boton "Cerca de mi" (GPS del navegador). En Streamlit Community Cloud los
+# componentes locales (declare_component) NO se sirven, asi que usamos HTML
+# embebido (st.markdown) que pide el GPS y escribe "lat, lon" en un text_input
+# oculto; al cambiar el widget, Streamlit reacciona y la app lee la posicion.
+# Requiere HTTPS (la nube lo es) y que el usuario acepte el permiso.
+GPS_HTML = """
+<div id="gpsbox">
+  <button onclick="pedirGPS()" style="font-size:17px;min-height:44px;width:100%;
+    border:none;border-radius:8px;background:#1f6f54;color:#fff;cursor:pointer">
+    📍 Cerca de mí (GPS)</button>
+  <div id="gpsmsg" style="font-size:13px;margin-top:6px;color:#333"></div>
+</div>
+<script>
+function pedirGPS(){
+  var m=document.getElementById('gpsmsg');
+  if(!navigator.geolocation){m.textContent='GPS no soportado';return;}
+  m.textContent='Permite el acceso a tu ubicación…';
+  navigator.geolocation.getCurrentPosition(
+    function(p){
+      var inp=document.querySelector('input[id*="gps_coord"]');
+      if(inp){inp.value=p.coords.latitude.toFixed(5)+','+p.coords.longitude.toFixed(5);
+        var ev=new Event('input',{bubbles:true});inp.dispatchEvent(ev);}
+      m.textContent='Ubicación obtenida ✅';
+    },
+    function(e){m.textContent='No se pudo obtener el GPS: '+e.message;});
+}
+</script>
+"""
+st.markdown(GPS_HTML, unsafe_allow_html=True)
 
-gps_val = _gps_component(height=80)
-if gps_val and isinstance(gps_val, dict) and "lat" in gps_val:
-    st.session_state["_gps_lat"] = gps_val["lat"]
-    st.session_state["_gps_lon"] = gps_val["lon"]
-    st.rerun()  # vuelve a ejecutar para disparar la busqueda con el GPS
+# Campo oculto donde el JS escribe "lat, lon"; lo leemos como trigger de busqueda
+gps_coord = st.text_input("", key="gps_coord", placeholder="",
+                           label_visibility="collapsed")
+if gps_coord and "," in gps_coord:
+    try:
+        la, lo = gps_coord.split(",")
+        st.session_state["_gps_lat"] = float(la)
+        st.session_state["_gps_lon"] = float(lo)
+        st.rerun()
+    except Exception:
+        pass
 
 search_button = st.button(t("search"), type="primary", use_container_width=True)
 # Si hay posicion GPS recien obtenida, buscamos con ella directamente
