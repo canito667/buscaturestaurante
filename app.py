@@ -943,43 +943,12 @@ st.markdown(
     f"🍽️ {t('dest_label')}</div></div>",
     unsafe_allow_html=True)
 
-# OPCION PRINCIPAL (heroe): "Usar mi ubicacion". Caja animada (glow) para que
-# resalte y el texto para Daniel. Usamos st_js.get_geolocation (patron del
-# paquete que resuelve su propia Promise y NO cuelga la pagina, a diferencia
-# de inyectar JS que espera el click). Requiere HTTPS y permiso del navegador.
-import streamlit_js_eval as st_js
-st.markdown(
-    "<div style='padding:12px 14px;border-radius:14px;margin-bottom:12px;"
-    "background:linear-gradient(135deg,#1f6f54,#2e8b57);color:#fff;"
-    "box-shadow:0 0 14px 3px rgba(46,139,87,.6);"
-    "animation:gpsglow 2.2s ease-in-out infinite'>"
-    "<div style='font-size:18px;font-weight:800;margin-bottom:8px'>"
-    "📍 Papa, no sé, mais l’appli choisit pour moi</div></div>"
-    "<style>@keyframes gpsglow{0%,100%{box-shadow:0 0 10px 2px rgba(46,139,87,.55);}"
-    "50%{box-shadow:0 0 22px 6px rgba(46,139,87,.9);}}</style>",
-    unsafe_allow_html=True)
-geo = st_js.get_geolocation(component_key="geo_btn")
-if geo and isinstance(geo, dict) and geo.get("latitude") is not None:
-    lat = float(geo["latitude"]); lon = float(geo["longitude"])
-    location_query = f"{lat:.5f}, {lon:.5f}"
-    st.session_state["pending_city"] = location_query
-    st.rerun()
-
 location_query = st.text_input(
     "",  # etiqueta ya en la caja destacada de arriba
     key="location_query",
     placeholder=t("dest_placeholder"))
 
 search_button = st.button(t("search"), type="primary", use_container_width=True)
-# Si hay posicion GPS recien obtenida, buscamos con ella directamente
-gps_lat = st.session_state.get("_gps_lat")
-gps_lon = st.session_state.get("_gps_lon")
-if gps_lat is not None and gps_lon is not None and not location_query.strip():
-    location_query = f"{gps_lat:.5f}, {gps_lon:.5f}"
-    st.session_state["pending_city"] = location_query
-    search_button = True
-    st.session_state["_gps_lat"] = None
-    st.session_state["_gps_lon"] = None
 
 radius = st.slider(t("radius"), 500, 3000, 1200, 100)
 

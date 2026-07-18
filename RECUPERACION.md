@@ -35,7 +35,29 @@
 - NUEVO dependencia: streamlit_js_eval (en requirements.txt) para el
   boton GPS fiable en la nube.
 
-## ESTADO ACTUAL (ultima actualizacion: 2026-07-14)
+## ESTADO ACTUAL (ultima actualizacion: 2026-07-18)
+- App CONFIRMADA PUBLICA y funcionando por web
+  (https://buscaturestaurante-fwzt79fl7pyzh7a3nwekr5.streamlit.app/).
+  El usuario la vio arriba y funciona. CODIGO verificado en local: arranca
+  (Uvicorn 8501, HTTP 200) y se renderiza entera (buscador, GPS, filtros).
+- FUENTES DE DATOS OK: Photon 200, Nominatim 200, Overpass 200 (el "406"
+  de una prueba con curl era solo falta de header Accept; la app usa
+  requests y funciona). Restaurantes reales devueltos (ej. "Avé Maria").
+- CAVEAT auth (importante para Daniel): Streamlit Community Cloud (Snowflake)
+  pone muro de login /-/auth/app a clientes SIN sesion de Streamlit. El
+  usuario lo ve bien por tener cuenta logueada. RIESGO: Daniel en su movil
+  SIN cuenta de Streamlit vera el muro. Mitigacion futura si falla: migrar
+  a Hugging Face Spaces (publico sin login, open source) — app.py +
+  requirements.txt, sin secretos. Preparado pero NO hecho (app ya funciona).
+- PENDIENTE FUNCIONAL CLAVE: PLATOS y PRECIOS por restaurante (entrada
+  manual acordada, sin fuente abierta Francia). No implementado todavia.
+- 2026-07-18 (sesion 2): ELIMINADO el bloque GPS completo (caja glow verde
+  'Papa, no sé, mais l'appli choisit pour moi' + boton get_geolocation) por
+  peticion del usuario (no le funcionaba). Queda SOLO buscador por texto.
+  Tambien quitada la dependencia streamlit_js_eval de requirements.txt.
+  Verificado: app arranca, renderiza y busca (75011/Paris 300 restos, Lyon,
+  Le Kremlin-Bicetre via '3 bis rue Pasteur 94270' funcionan).
+  PENDIENTE: commit+push para reflejar en la nube.
 - Titulo app (3 idiomas, opcion A elegida por usuario):
   es: "🍽️ Daniel, señor duerme más — Almuerza ya, que yo elijo por ti"
   en/fr: "🍽️ Daniel, señor duerme más — Déjeune vite, je choisis pour toi"
@@ -91,6 +113,9 @@
 #   ejecutarlo con ./.venv/bin/python, luego rm.
 
 ## HISTORIAL DE CAMBIOS (nuevos arriba)
+- 2026-07-18: App confirmada publica y funcionando por web; verificado
+  codigo en local + fuentes OSM. Caveat auth Daniel anotado. Siguiente:
+  plats/precios manuales.
 - 2026-07-14: Fix cuelgue boton GPS -> get_geolocation(envuelto caja
   glow). Commit b928a19.
 - 2026-07-14: Fix bug get_geolocation usa component_key (no key).
