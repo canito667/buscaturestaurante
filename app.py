@@ -265,7 +265,7 @@ def get_restaurants_nearby(lat, lon, radius=1500):
 # ---------------------------------------------------------------------------
 # "COMENTARIOS FAVORABLES" -> Índice de Recomendación (proxy honesto de OSM)
 # ---------------------------------------------------------------------------
-def compute_score(r, solo, takeaway_only, diet, open_now, lang="es"):
+def compute_score(r, solo, takeaway_only, diet, open_now, lang="fr"):
     """0-100 basado en señales abiertas de OSM.
     Devuelve (score, razones) donde 'razones' es una lista de textos cortos
     que explican en lenguaje claro por qué ese restaurante tiene esa nota.
@@ -446,199 +446,10 @@ def gmaps_link(r):
 def t(key):
     # App fijada a frances (uso en Francia). Sin selector de idioma.
     lang = "fr"
-    return I18N[lang].get(key, I18N["es"][key])
+    return I18N["fr"].get(key)
 
 
 I18N = {
-    "es": {
-        "lang_label": "🌐 Idioma",
-        "title": "🍽️ Daniel, señor duerme más — Almuerza ya, que yo elijo por ti",
-        "subtitle": "Dejas de decir «no sé»: te proponemos buenas opciones en "
-                    "Francia, ordenadas por lo que la comunidad recomienda de verdad",
-        "how_header": "ℹ️ ¿Cómo funciona?",
-        "how_body": (
-            "**El problema:** «¿qué quieres comer?» → «no sé» → hambre → Uber Eats "
-            "→ siempre lo mismo.\n\n"
-            "**La solución:** la app no te pregunta «qué quieres». Te propone "
-            "opciones ya cribadas y ordenadas por un **Índice de Recomendación** "
-            "basado en señales reales de OpenStreetMap (la comunidad de mapa libre):\n\n"
-            "- 🕒 **Frescura de datos** (`check_date`): sitios verificados recientemente.\n"
-            "- 🥡 **Para llevar** / 🪑 **Para sentarse** según vayas solo o acompañado.\n"
-            "- 🥗 **Opciones veganas/vegetarianas** si las pides.\n"
-            "- 📋 **Completitud de la ficha** (web, teléfono, accesibilidad…): la "
-            "comunidad lo cuida = implícitamente recomendado.\n"
-            "- 🍜 **Variedad de cocina** para romper la rutina de siempre lo mismo.\n\n"
-            "> Nota honesta: OpenStreetMap en Francia **no tiene estrellas ni "
-            "comentarios** tipo Google. Este índice es un proxy transparente con "
-            "lo que SÍ existe."
-        ),
-        "dest_label": "📍 ¿Dónde almuerzas hoy? (ciudad, código postal o dirección en Francia):",
-        "dest_placeholder": "Ej: Paris, 75011, o 3 bis rue Pasteur 94270",
-        "gps_hint": "Usa mi ubicación para buscar restaurantes cerca de mí",
-        "quick_cities": "⚡ Ciudades rápidas (toque y busca):",
-        "search": "🔍 Buscar",
-        "radius": "📏 Radio de búsqueda (m):",
-        "companion_q": "🧑‍🤝‍🧑 ¿Vas solo o acompañado?",
-        "solo": "Solo (rápido, para llevar)",
-        "acco": "Acompañado (sentarse)",
-        "filters": "⚙️ Filtros",
-        "takeaway": "🥡 Solo para llevar (takeaway)",
-        "diet": "🥗 Régimen:",
-        "diet_none": "Omnívoro",
-        "diet_veg": "Vegetariano",
-        "diet_vegan": "Vegano",
-        "open": "🟢 Solo si está abierto ahora",
-        "enter_loc": "Escribe una ubicación.",
-        "not_found": "❌ Ubicación no encontrada. Prueba añadiendo «Francia».",
-        "searching": "🔍 Buscando «{q}»...",
-        "osm": "🍽️ Consultando OpenStreetMap...",
-        "press_search": "👆 Pulsa **Buscar** para ver opciones cerca de tu ubicación.",
-        "no_results": "😔 Ningún sitio encaja con tus filtros. Afloja alguno "
-                      "(ej. quita «abierto ahora» o «solo para llevar»).",
-        "recommended": "🎯 {n} opciones recomendadas, de mejor a peor:",
-        "decide": "🎲 No sé, ¡decídeme tú!",
-        "chosen": "🍽️ Hoy te toca: **{name}**",
-        "chosen_eyebrow": "Hoy te toca (la app decidió por ti):",
-        "gmaps_addr_text": "Ver en Google Maps",
-        "cuisine_idx": "**Cocina:** {c} · **Índice:** {s}/100",
-        "gmaps": "📍 [Ver en Google Maps]({url})",
-        "gmaps_addr": "📍 [Ver en Google Maps (dirección)]({url})",
-        "why": "**¿Por qué este y no otro?**",
-        "low_score": "⚠️ Ojo: su nota no es alta. Era el que mejor encajaba con "
-                     "tus filtros entre todas las opciones, pero tú siempre "
-                     "puedes ignorarme y mirar la lista.",
-        "why_note": "ℹ️ Por qué esta nota",
-        "address": "**Dirección:** {d}",
-        "address_na": "**Dirección:** Dirección no disponible",
-        "schedule": "**Horario:** {h}",
-        "perfil_header": "🧭 Tu perfil móvil",
-        "perfil_body": "Trabajas desplazándote por Francia y el almuerzo es corto. "
-                       "Esta app existe para que no caigas siempre en lo mismo.",
-        "consejo": "**Consejo:** usa «No sé, decídeme tú» cuando el tiempo apriete. "
-                   "El azar, entre buenas opciones, rompe la rutina.",
-        "fuente": "Fuente: OpenStreetMap (datos abiertos). Sin estrellas tipo "
-                  "Google en Francia; el índice es un proxy de recomendación de la comunidad.",
-        "badges": {
-            "llevar": "🥡 llevar", "vegano": "🥗 vegano",
-            "vegetariano": "🥗 vegetariano", "terraza": "🌞 terraza",
-            "salon": "🪑 salón", "accesible": "♿ accesible",
-            "web": "🌐 web", "verif": "🕒 verif. {d}",
-        },
-        "geo_none": "🤔 No encontré «{q}». O lo escribiste con el dedo pequeño, "
-                    "o ese sitio está escondido mejor que tus ganas de cocinar.",
-        "geo_none_tip": "Prueba a: añadir **Francia**, quitar acentos (Café -> "
-                        "Cafe), o poner una ciudad conocida cerca (París, Lyon, "
-                        "Marsella). Yo confío en ti. Casi.",
-        "geo_lowprec": "🔍 Encontré algo parecido, pero no juraría que es «{q}». "
-                       "Mira bien antes de que acabes comiendo en el país vecino.",
-        "geo_ambiguous": "🧭 «{q}» puede ser varias cosas. Elige la que suena a "
-                         "donde quieres almorzar:",
-        "geo_confirm_q": "¿Es este tu sitio o Prefieres reescribirlo?",
-        "geo_yes": "✅ Sí, ese",
-        "geo_no": "✏️ Lo reescribo",
-        "geo_keep": "Vale, confío en tu pulso. Buscando cerca de ahí…",
-        "geo_retry": "Perfecto. Reescribe la ubicación arriba y dale a Buscar.",
-        "add_to_home_hint_title": "Usar como app en el móvil",
-        "add_to_home_hint": "En el iPhone: abre esta página en **Safari**, pulsa el "
-                            "botón **Compartir** (el cuadradito con flecha) y elige "
-                            "**Añadir a pantalla de inicio**. Se crea un icono como "
-                            "el de una app: se abre a pantalla completa y sin la barra "
-                            "de Safari. Así almuerzas decidido en un toque.",
-    },
-    "en": {
-        "lang_label": "🌐 Language",
-        "title": "🍽️ Daniel, señor duerme más — Déjeune vite, je choisis pour toi",
-        "subtitle": "Stop saying \"I don't know\": we suggest good options in "
-                    "France, ranked by what the community really recommends",
-        "how_header": "ℹ️ How it works",
-        "how_body": (
-            "**The problem:** \"What do you want to eat?\" → \"I don't know\" → "
-            "hungry → Uber Eats → always the same.\n\n"
-            "**The fix:** the app doesn't ask \"what do you want\". It suggests "
-            "pre-filtered options ranked by a **Recommendation Index** based on "
-            "real OpenStreetMap signals (the free-map community):\n\n"
-            "- 🕒 **Data freshness** (`check_date`): recently verified places.\n"
-            "- 🥡 **Takeaway** / 🪑 **Sit-down** depending on solo or with company.\n"
-            "- 🥗 **Vegan/vegetarian options** if you ask.\n"
-            "- 📋 **Complete entry** (website, phone, accessibility…): the "
-            "community maintains it = implicitly recommended.\n"
-            "- 🍜 **Cuisine variety** to break the always-the-same routine.\n\n"
-            "> Honest note: OpenStreetMap in France **has no stars or reviews** "
-            "like Google. This index is a transparent proxy from what DOES exist."
-        ),
-        "dest_label": "📍 Where are you having lunch today? (city, postal code or address in France):",
-        "dest_placeholder": "e.g. Paris, 75011, or 3 bis rue Pasteur 94270",
-        "gps_hint": "Use my location to find restaurants near me",
-        "quick_cities": "⚡ Quick cities (tap to search):",
-        "search": "🔍 Search",
-        "radius": "📏 Search radius (m):",
-        "companion_q": "🧑‍🤝‍🧑 Solo or with company?",
-        "solo": "Solo (quick, takeaway)",
-        "acco": "With company (sit down)",
-        "filters": "⚙️ Filters",
-        "takeaway": "🥡 Takeaway only",
-        "diet": "🥗 Diet:",
-        "diet_none": "Omnivore",
-        "diet_veg": "Vegetarian",
-        "diet_vegan": "Vegan",
-        "open": "🟢 Only if open now",
-        "enter_loc": "Type a location.",
-        "not_found": "❌ Location not found. Try adding \"France\".",
-        "searching": "🔍 Searching \"{q}\"...",
-        "osm": "🍽️ Querying OpenStreetMap...",
-        "press_search": "👆 Press **Search** to see options near your location.",
-        "no_results": "😔 No place matches your filters. Loosen one "
-                      "(e.g. uncheck \"open now\" or \"takeaway only\").",
-        "recommended": "🎯 {n} recommended options, best to worst:",
-        "decide": "🎲 I don't know, you choose!",
-        "chosen": "🍽️ Today it's: **{name}**",
-        "chosen_eyebrow": "Today it's (the app chose for you):",
-        "gmaps_addr_text": "View on Google Maps",
-        "cuisine_idx": "**Cuisine:** {c} · **Index:** {s}/100",
-        "gmaps": "📍 [View on Google Maps]({url})",
-        "gmaps_addr": "📍 [View on Google Maps (address)]({url})",
-        "why": "**Why this one and not another?**",
-        "low_score": "⚠️ Heads up: its score isn't high. It was the best fit for "
-                     "your filters among all options, but you can always ignore "
-                     "me and check the list.",
-        "why_note": "ℹ️ Why this score",
-        "address": "**Address:** {d}",
-        "address_na": "**Address:** Address not available",
-        "schedule": "**Hours:** {h}",
-        "perfil_header": "🧭 Your mobile profile",
-        "perfil_body": "You work on the move across France and lunch is short. "
-                       "This app exists so you don't always fall back on the same.",
-        "consejo": "**Tip:** use \"I don't know, you choose!\" when time is tight. "
-                   "Chance, among good options, breaks the routine.",
-        "fuente": "Source: OpenStreetMap (open data). No Google-style stars in "
-                  "France; the index is a community-recommendation proxy.",
-        "badges": {
-            "llevar": "🥡 takeaway", "vegano": "🥗 vegan",
-            "vegetariano": "🥗 vegetarian", "terraza": "🌞 terrace",
-            "salon": "🪑 dining room", "accesible": "♿ accessible",
-            "web": "🌐 web", "verif": "🕒 verif. {d}",
-        },
-        "geo_none": "🤔 I couldn't find \"{q}\". Either you typed it with your "
-                    "thumb, or that place is hidden better than your will to cook.",
-        "geo_none_tip": "Try: add **France**, drop accents (Café -> Cafe), or use "
-                        "a well-known nearby city (Paris, Lyon, Marseille). I "
-                        "believe in you. Sort of.",
-        "geo_lowprec": "🔍 I found something close, but I wouldn't bet it's "
-                       "\"{q}\". Double-check before you end up eating in the "
-                       "next country.",
-        "geo_ambiguous": "🧭 \"{q}\" could be several things. Pick the one that "
-                         "sounds like where you want lunch:",
-        "geo_confirm_q": "Is this your spot, or do you want to rewrite it?",
-        "geo_yes": "✅ Yes, that one",
-        "geo_no": "✏️ I'll rewrite it",
-        "geo_keep": "Ok, I trust your aim. Searching near there…",
-        "geo_retry": "Great. Rewrite the location above and hit Search.",
-        "add_to_home_hint_title": "Use as a mobile app",
-        "add_to_home_hint": "On iPhone: open this page in **Safari**, tap the "
-                            "**Share** button (the square with an arrow) and choose "
-                            "**Add to Home Screen**. It makes an app icon: opens "
-                            "fullscreen, no Safari bar. Decide lunch in one tap.",
-    },
     "fr": {
         "lang_label": "🌐 Langue",
         "title": "🍽️ Daniel, señor duerme más — Déjeune vite, je choisis pour toi",
@@ -735,133 +546,51 @@ I18N = {
                             "**Ajouter à l'écran d'accueil**. Ça crée une icône d'app : "
                             "ouverture plein écran, sans la barre Safari. Déjeune "
                             "décidé en une tape.",
-    },
+    }
 }
 
 # Razones del índice (lenguaje-neutral -> traducido por idioma)
 REASONS = {
     "verif_fresco": {
-        "es": "🕒 Verificado por la comunidad en {y} (datos frescos)",
-        "en": "🕒 Verified by the community in {y} (fresh data)",
         "fr": "🕒 Vérifié par la communauté en {y} (données fraîches)"},
     "verif_old": {
-        "es": "🕒 Verificado en {y} (datos algo antiguos)",
-        "en": "🕒 Verified in {y} (somewhat old data)",
         "fr": "🕒 Vérifié en {y} (données un peu anciennes)"},
     "verif_ancien": {
-        "es": "🕒 Verificado hace tiempo ({y})",
-        "en": "🕒 Verified a while ago ({y})",
         "fr": "🕒 Vérifié il y a longtemps ({y})"},
     "verif_ilegible": {
-        "es": "🕒 Verificado por la comunidad (fecha ilegible)",
-        "en": "🕒 Verified by the community (unreadable date)",
         "fr": "🕒 Vérifié par la communauté (date illisible)"},
     "no_verif": {
-        "es": "⚠️ Nadie ha verificado este sitio recientemente",
-        "en": "⚠️ Nobody has verified this place recently",
         "fr": "⚠️ Personne n'a vérifié cet endroit récemment"},
     "takeaway_solo": {
-        "es": "🥡 Para llevar: ideal para comer rápido y seguir",
-        "en": "🥡 Takeaway: ideal to eat fast and move on",
         "fr": "🥡 À emporter : idéal pour manger vite et repartir"},
     "rapida": {
-        "es": "⚡ Cocina rápida: poco tiempo de espera",
-        "en": "⚡ Fast food: little waiting time",
         "fr": "⚡ Cuisine rapide : peu d'attente"},
     "sentarse": {
-        "es": "🪑 Tiene donde sentarse: bueno para acompañado",
-        "en": "🪑 Has seating: good when with company",
         "fr": "🪑 A des places assises : pratique en groupe"},
     "takeaway_acco": {
-        "es": "🥡 También para llevar, por si apuras",
-        "en": "🥡 Also takeaway, in case you're in a hurry",
         "fr": "🥡 Aussi à emporter, si tu es pressé"},
     "no_vegan": {
-        "es": "❌ No es vegano (filtro activo)",
-        "en": "❌ Not vegan (filter active)",
         "fr": "❌ Pas vegan (filtre actif)"},
     "no_takeaway": {
-        "es": "❌ No es para llevar (filtro activo)",
-        "en": "❌ Not takeaway (filter active)",
         "fr": "❌ Pas à emporter (filtre actif)"},
     "no_veg": {
-        "es": "❌ No es vegetariano (filtro activo)",
-        "en": "❌ Not vegetarian (filter active)",
         "fr": "❌ Pas végétarien (filtre actif)"},
     "vegan_ok": {
-        "es": "🥗 Opción vegana de verdad",
-        "en": "🥗 Real vegan option",
         "fr": "🥗 Vraie option vegan"},
     "veg_ok": {
-        "es": "🥗 Opción vegetariana/vegana",
-        "en": "🥗 Vegetarian/vegan option",
         "fr": "🥗 Option végétarienne/vegan"},
     "cerrado": {
-        "es": "❌ Cerrado ahora mismo",
-        "en": "❌ Closed right now",
         "fr": "❌ Fermé en ce moment"},
     "ficha_buena": {
-        "es": "📋 Ficha bien documentada por la comunidad (+{tc})",
-        "en": "📋 Well-documented entry by the community (+{tc})",
         "fr": "📋 Fiche bien documentée par la communauté (+{tc})"},
     "ficha_parcial": {
-        "es": "📋 Ficha parcialmente documentada (+{tc})",
-        "en": "📋 Partially documented entry (+{tc})",
         "fr": "📋 Fiche partiellement documentée (+{tc})"},
     "variedad": {
-        "es": "🍜 Cocina {c}: varies de lo de siempre",
-        "en": "🍜 {c} cuisine: break from the usual",
-        "fr": "🍜 Cuisine {c} : change from the usual"},
+        "fr": "🍜 Cuisine {c} : change from the usual"}
 }
 
 # Frases irónicas por idioma (la app decide por ti sabiendo que no debería)
 FRASES_IRONICAS = {
-    "es": [
-        "🤖 Lo elegí por ti. Sí, irónico: esto tendrías que decidirlo tú, pero "
-        "justo por eso existo — para romper el «no sé» que te deja con hambre y "
-        "pidiendo siempre lo mismo. Tómalo como empujón, no sentencia.",
-        "🤖 Decidí por ti otra vez. Eres libre, claro… libre de seguir sin saber "
-        "qué quieres. Yo cubro ese hueco mientras tanto.",
-        "🤖 Yo sí sé qué quieres (aparentemente). Tú, que llevas años sin elegir, "
-        "bienvenido a delegar en una app de almuerzo.",
-        "🤖 Tu libre albedrío descansó hoy. No te preocupes: lo elegí con criterio "
-        "de comunidad, no con tu indecisión.",
-        "🤖 Alguien tenía que decidir. Como tú no ibas a hacerlo, me tocó a mí. La "
-        "ironía es que esto debería ser tu trabajo.",
-        "🤖 Menos «no sé» y más «me lo comí». Asumí el mando de tu almuerzo para "
-        "que dejes de dar vueltas.",
-        "🤖 Delegaste en una máquina lo que un humano hace desde el neolítico: "
-        "elegir comida. Progreso, supongo.",
-        "🤖 Lo mío es no tener hambre y aun así elegir por ti. La paradoja almuerza "
-        "mientras tú dudas.",
-        "🤖 Otra vez yo. Si fueras decisivo no necesitarías esta app, pero aquí "
-        "estamos, rompiendo la rutina de lo de siempre.",
-        "🤖 Pulsaste un botón para no decidir. Mis respetos a tu eficiencia en la "
-        "procrastinación culinaria.",
-    ],
-    "en": [
-        "🤖 I chose it for you. Yes, ironic: you should've decided this yourself, "
-        "but that's exactly why I exist — to break the \"I don't know\" that leaves "
-        "you hungry and always ordering the same. Take it as a nudge, not a sentence.",
-        "🤖 I decided for you again. You're free, sure… free to keep not knowing "
-        "what you want. I cover that gap in the meantime.",
-        "🤖 I do know what you want (apparently). You, who haven't chosen in years, "
-        "welcome to delegating to a lunch app.",
-        "🤖 Your free will took the day off. Don't worry: I picked it with "
-        "community criteria, not your indecision.",
-        "🤖 Someone had to decide. Since you weren't going to, it fell to me. The "
-        "irony is this should be your job.",
-        "🤖 Less \"I don't know\" and more \"I ate it\". I took command of your "
-        "lunch so you'd stop going in circles.",
-        "🤖 You delegated to a machine what humans have done since the Neolithic: "
-        "pick food. Progress, I guess.",
-        "🤖 I don't get hungry and still choose for you. The paradox eats while you "
-        "hesitate.",
-        "🤖 Me again. If you were decisive you wouldn't need this app, but here we "
-        "are, breaking the same-old routine.",
-        "🤖 You pressed a button to avoid deciding. My respects for your efficiency "
-        "at culinary procrastination.",
-    ],
     "fr": [
         "🤖 Je l'ai choisi pour toi. Oui, ironique : tu aurais dû décider toi-même, "
         "mais c'est exactement pour ça que j'existe — pour briser le «je sais pas» "
@@ -885,7 +614,7 @@ FRASES_IRONICAS = {
         "mais nous voilà, en train de briser la routine du toujours-pareil.",
         "🤖 Tu as pressé un bouton pour ne pas décider. Mon respect pour ton "
         "efficacité en procrastination culinaire.",
-    ],
+    ]
 }
 
 
@@ -948,7 +677,27 @@ location_query = st.text_input(
     key="location_query",
     placeholder=t("dest_placeholder"))
 
-search_button = st.button(t("search"), type="primary", use_container_width=True)
+# Boton "Chercher" con efecto visual (pulso/brillo) para que Daniel no
+# se pierda donde buscar. El boton nativo se envuelve en un contenedor con
+# clase propia y se anima por CSS (sin JS -> no cuelga la pagina).
+st.markdown(
+    "<style>"
+    ".chercher-pulse{margin-top:6px;padding:6px;border-radius:14px;"
+    "animation:chercherPulse 1.6s ease-in-out infinite;}"
+    "@keyframes chercherPulse{"
+    "0%,100%{box-shadow:0 0 0 0 rgba(46,139,87,.0),0 0 10px 2px rgba(46,139,87,.45);}"
+    "50%{box-shadow:0 0 0 6px rgba(46,139,87,.18),0 0 26px 8px rgba(46,139,87,.9);}"
+    "}"
+    ".chercher-pulse button{font-size:20px !important;font-weight:800 !important;"
+    "height:54px !important;animation:chercherBtn 1.6s ease-in-out infinite;}"
+    "@keyframes chercherBtn{0%,100%{transform:scale(1);}50%{transform:scale(1.04);}}"
+    "</style>",
+    unsafe_allow_html=True)
+with st.container():
+    st.markdown("<div class='chercher-pulse'>", unsafe_allow_html=True)
+    search_button = st.button(t("search"), type="primary",
+                              use_container_width=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
 radius = st.slider(t("radius"), 500, 3000, 1200, 100)
 
@@ -1068,7 +817,7 @@ else:
     candidatos = []
     for r in restaurantes:
         s, razones = compute_score(r, solo, f_takeaway, diet_key, f_open,
-                                    lang=st.session_state.get("lang", "es"))
+                                    lang="fr")
         if s > 0:
             r["_score"] = s
             r["_razones"] = razones
@@ -1083,7 +832,7 @@ else:
         if st.button(t("decide"), type="primary"):
             pesos = [max(1, r["_score"]) for r in candidatos]
             elegido = random.choices(candidatos, weights=pesos, k=1)[0]
-            frase = random.choice(FRASES_IRONICAS[st.session_state.get("lang", "es")])
+            frase = random.choice(FRASES_IRONICAS["fr"])
             st.balloons()
             maps_url = gmaps_link(elegido)
             # Resultado GRANDE y destacado: la gente apurada (99%) no lee
