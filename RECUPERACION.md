@@ -51,7 +51,13 @@
   requirements.txt, sin secretos. Preparado pero NO hecho (app ya funciona).
 - PENDIENTE FUNCIONAL CLAVE: PLATOS y PRECIOS por restaurante (entrada
   manual acordada, sin fuente abierta Francia). No implementado todavia.
-- 2026-07-18 (sesion 2): ELIMINADO el bloque GPS completo (caja glow verde
+- 2026-07-18 (sesion 3): PURGA de idiomas es/en del todo (I18N, REASONS,
+  FRASES_IRONICAS). App 100% frances. Fallbacks apuntan a "fr".
+  BOTON "Chercher" con efecto visual pulso/brillo verde animado
+  (.chercher-pulse / chercherPulse / chercherBtn) para que Daniel lo vea.
+  Commit d84d841 (push ok). Verificado: arranca (BOOT 200) + inspector
+  confirma animacion en vivo.
+- 2026-07-18 (sesion 2): ELIMINADO el bloque GPS completo (caja glow verde + boton). Queda SOLO buscador por texto. Commit 3c7208d.
   'Papa, no sé, mais l'appli choisit pour moi' + boton get_geolocation) por
   peticion del usuario (no le funcionaba). Queda SOLO buscador por texto.
   Tambien quitada la dependencia streamlit_js_eval de requirements.txt.

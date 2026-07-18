@@ -665,39 +665,37 @@ if "pending_city" not in st.session_state:
 
 # Caja de busqueda destacada (sin valor por defecto: el usuario escribe el suyo)
 st.markdown(
-    "<div style='padding:14px 16px;border-radius:14px;"
-    "background:linear-gradient(135deg,#1f6f54,#2e8b57);color:white;"
+    "<div style='padding:14px 16px;border-radius:14px;'"
+    "background:linear-gradient(135deg,#1f6f54,#2e8b57);color:white;'"
     "box-shadow:0 4px 14px rgba(0,0,0,.25);margin-bottom:14px'>"
     f"<div style='font-size:20px;font-weight:800;margin-bottom:10px'>"
     f"🍽️ {t('dest_label')}</div></div>",
     unsafe_allow_html=True)
 
-location_query = st.text_input(
-    "",  # etiqueta ya en la caja destacada de arriba
-    key="location_query",
-    placeholder=t("dest_placeholder"))
-
-# Boton "Chercher" con efecto visual (pulso/brillo) para que Daniel no
-# se pierda donde buscar. El boton nativo se envuelve en un contenedor con
-# clase propia y se anima por CSS (sin JS -> no cuelga la pagina).
+# Efecto visual en el campo de busqueda (donde se escribe la direccion):
+# caja con borde verde animado (latido de glow) para que Daniel vea claro
+# donde escribir. CSS puro, sin JS -> no cuelga la pagina.
 st.markdown(
     "<style>"
-    ".chercher-pulse{margin-top:6px;padding:6px;border-radius:14px;"
-    "animation:chercherPulse 1.6s ease-in-out infinite;}"
-    "@keyframes chercherPulse{"
-    "0%,100%{box-shadow:0 0 0 0 rgba(46,139,87,.0),0 0 10px 2px rgba(46,139,87,.45);}"
-    "50%{box-shadow:0 0 0 6px rgba(46,139,87,.18),0 0 26px 8px rgba(46,139,87,.9);}"
+    ".search-glow{padding:4px;border-radius:12px;"
+    "animation:searchGlow 1.8s ease-in-out infinite;}"
+    "@keyframes searchGlow{"
+    "0%,100%{box-shadow:0 0 0 2px rgba(46,139,87,.35),0 0 8px 1px rgba(46,139,87,.4);}"
+    "50%{box-shadow:0 0 0 4px rgba(46,139,87,.7),0 0 20px 6px rgba(46,139,87,.9);}"
     "}"
-    ".chercher-pulse button{font-size:20px !important;font-weight:800 !important;"
-    "height:54px !important;animation:chercherBtn 1.6s ease-in-out infinite;}"
-    "@keyframes chercherBtn{0%,100%{transform:scale(1);}50%{transform:scale(1.04);}}"
+    ".search-glow input{font-size:18px !important;height:48px !important;"
+    "border:2px solid #2e8b57 !important;}"
     "</style>",
     unsafe_allow_html=True)
 with st.container():
-    st.markdown("<div class='chercher-pulse'>", unsafe_allow_html=True)
-    search_button = st.button(t("search"), type="primary",
-                              use_container_width=True)
+    st.markdown("<div class='search-glow'>", unsafe_allow_html=True)
+    location_query = st.text_input(
+        "",  # etiqueta ya en la caja destacada de arriba
+        key="location_query",
+        placeholder=t("dest_placeholder"))
     st.markdown("</div>", unsafe_allow_html=True)
+
+search_button = st.button(t("search"), type="primary", use_container_width=True)
 
 radius = st.slider(t("radius"), 500, 3000, 1200, 100)
 
