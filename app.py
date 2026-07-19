@@ -20,12 +20,11 @@ Flujo:
 """
 
 import streamlit as st
-import streamlit.components.v1 as components
 from streamlit_js_eval import get_geolocation
 import requests
 import time
 import random
-from datetime import datetime, timezone
+from datetime import datetime
 
 try:
     from zoneinfo import ZoneInfo
@@ -79,23 +78,6 @@ def _es_pais_buscado(texto):
 # ---------------------------------------------------------------------------
 # DATOS (internet -> OpenStreetMap)
 # ---------------------------------------------------------------------------
-@st.cache_data(show_spinner=False)
-def get_coordinates(location_query):
-    try:
-        params = {"q": location_query, "format": "json", "limit": 1}
-        resp = requests.get(NOMINATIM_URL, params=params,
-                            headers=HEADERS, timeout=15)
-        resp.raise_for_status()
-        data = resp.json()
-        if not data:
-            return None, None, ""
-        top = data[0]
-        return float(top["lat"]), float(top["lon"]), top.get("display_name", location_query)
-    except Exception as e:
-        st.exception(e)
-        return None, None, ""
-
-
 def _photon(q, limit=5):
     """Geocodifica con Photon (komoot, open source, OSM, sin API key ni
     rate-limit duro). Devuelve lista de (lat, lon, display_name, es_francia)."""
@@ -281,13 +263,13 @@ def get_restaurants_nearby(lat, lon, radius=1500):
         calle = tags.get("addr:street", "")
         num = tags.get("addr:housenumber", "")
         ciudad = tags.get("addr:city", "")
-        direccion = ", ".join(p for p in (calle, num, ciudad) if p) or "Dirección no disponible"
+        direccion = ", ".join(p for p in (calle, num, ciudad) if p) or "Adresse non disponible"
 
         out.append({
-            "nombre": tags.get("name", "Sin nombre"),
-            "cocina": tags.get("cuisine", "No especificada"),
+            "nombre": tags.get("name", "Sans nom"),
+            "cocina": tags.get("cuisine", "Non précisée"),
             "direccion": direccion,
-            "horario": tags.get("opening_hours", "No disponible"),
+            "horario": tags.get("opening_hours", "Non disponible"),
             "takeaway": tags.get("takeaway", "unknown"),       # yes/no/only/unknown
             "vegan": tags.get("diet:vegan", "no") == "yes",
             "vegetarian": tags.get("diet:vegetarian", "no") == "yes",
@@ -493,7 +475,7 @@ def t(key):
 I18N = {
     "fr": {
         "lang_label": "🌐 Langue",
-        "title": "🍽️ Daniel, señor duerme más — Déjeune vite, je choisis pour toi",
+        "title": "🍽️ Daniel, encore 5 minutes de sommeil — Déjeune vite, je choisis pour toi",
         "subtitle": "Arrête de dire «je sais pas» : on te propose de bonnes "
                     "options en France ou aux Pays-Bas, classées par ce que la communauté recommande vraiment",
         "how_header": "ℹ️ Comment ça marche",
@@ -541,10 +523,8 @@ I18N = {
         "decide": "🎲 Je sais pas, choisis pour moi !",
         "chosen": "🍽️ Aujourd'hui c'est : **{name}**",
         "chosen_eyebrow": "Aujourd'hui c'est (l'app a choisi pour toi) :",
-        "gmaps_addr_text": "Voir sur Google Maps",
         "cuisine_idx": "**Cuisine :** {c} · **Index :** {s}/100",
         "gmaps": "📍 [Voir sur Google Maps]({url})",
-        "gmaps_addr": "📍 [Voir sur Google Maps (adresse)]({url})",
         "why": "**Pourquoi celui-ci et pas un autre ?**",
         "low_score": "⚠️ Attention : sa note n'est pas élevée. C'était le meilleur "
                      "ajustement à tes filtres parmi toutes les options, mais tu "
@@ -627,7 +607,7 @@ REASONS = {
     "ficha_parcial": {
         "fr": "📋 Fiche partiellement documentée (+{tc})"},
     "variedad": {
-        "fr": "🍜 Cuisine {c} : change from the usual"}
+        "fr": "🍜 Cuisine {c} : change des habitudes"},
 }
 
 # Frases irónicas por idioma (la app decide por ti sabiendo que no debería)
@@ -684,7 +664,6 @@ if "pending_city" not in st.session_state:
 #   error  -> {"error": {"code":.., "message":..}}
 # El boton interior dice "Get location" (ingles, no configurable en la lib);
 # lo disfrazamos con una caja glow en frances encima.
-import random as _rnd
 VILLES_FR = ["Paris", "Lyon", "Marseille", "Toulouse", "Nice", "Nantes",
              "Montpellier", "Strasbourg", "Bordeaux", "Lille", "Rennes",
              "Reims", "Saint-Etienne", "Le Havre", "Toulon", "Grenoble",
@@ -762,7 +741,7 @@ GPS_GLOW_CSS = """
 </div>
 """
 
-if st.button("🎲 DECIDE POR MÍ (cerca de ti)", key="decide_grande",
+if st.button("🎲 Je sais pas, choisis pour moi (près de toi)", key="decide_grande",
              use_container_width=True):
     st.session_state["pending_city"] = ""
     st.session_state["_gps_mode"] = True
@@ -800,7 +779,7 @@ if st.session_state.get("_gps_error"):
             "(HTTPS) ou ce PC en localhost.")
     if st.button("🎲 Ville au hasard (sans GPS)", key="fallback_gps"):
         st.session_state["_gps_error"] = ""
-        st.session_state["pending_city"] = _rnd.choice(VILLES_FR)
+        st.session_state["pending_city"] = random.choice(VILLES_FR)
         st.session_state["_auto_search"] = True
         st.rerun()
 
@@ -1001,7 +980,7 @@ else:
             with st.container():
                 st.subheader(f"{r['nombre']}  ·  {r['_score']}/100")
                 st.write(t("cuisine_idx").format(c=r["cocina"], s=r["_score"]))
-                if r["direccion"] and r["direccion"] != "Dirección no disponible":
+                if r["direccion"] and r["direccion"] != "Adresse non disponible":
                     st.write(t("address").format(d=r["direccion"]))
                 else:
                     st.write(t("address_na"))
