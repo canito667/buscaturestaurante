@@ -703,7 +703,8 @@ CHERCHER_CSS = """
 # .st-key-decide_grande generee par Streamlit, pour ne teinter AUCUN autre
 # bouton (le vert "Chercher" et le GPS de la librairie restent intacts).
 DECIDE_CSS = """<style>
-.st-key-decide_grande button{
+.st-key-decide_grande button,
+.st-key-decide_resultados button{
   font-size:22px !important;font-weight:800 !important;height:66px !important;
   border-radius:16px !important;width:100%;
   background-image:linear-gradient(135deg,#ff6a00,#ff2d00) !important;
@@ -989,9 +990,13 @@ else:
     else:
         st.success(t("recommended").format(n=len(candidatos)))
 
-        # Bouton UNIQUE "DECIDE" (en haut) : le choix pondere s'affiche
-        # directement apres (voir elegir_restaurante). On liste ici les
-        # options recommandees.
+        # Bouton "DECIDE" (coeur de l'appli) : juste apres les resultats,
+        # la ou Daniel l'attend. Choix pondere au hasard (+ fete + vibre).
+        st.markdown(DECIDE_CSS, unsafe_allow_html=True)
+        if st.button("🎲 Je sais pas, choisis pour moi",
+                     key="decide_resultados", type="primary",
+                     use_container_width=True):
+            elegir_restaurante(candidatos)
 
         for r in candidatos[:20]:
             with st.container():
