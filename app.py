@@ -20,6 +20,7 @@ Flujo:
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
 from streamlit_js_eval import get_geolocation
 import requests
 import time
@@ -475,7 +476,7 @@ def t(key):
 I18N = {
     "fr": {
         "lang_label": "🌐 Langue",
-        "title": "🍽️ Daniel, encore 5 minutes de sommeil — Déjeune vite, je choisis pour toi",
+        "title": "🍽️ Daniel, señor duerme más — Déjeune vite, je choisis pour toi",
         "subtitle": "Arrête de dire «je sais pas» : on te propose de bonnes "
                     "options en France ou aux Pays-Bas, classées par ce que la communauté recommande vraiment",
         "how_header": "ℹ️ Comment ça marche",
@@ -698,10 +699,11 @@ CHERCHER_CSS = """
 
 # Style du bouton "Je sais pas, choisis pour moi" (Daniel, 16 ans, 100 km/h) :
 # on le rend XL, orange et pulsant pour qu'il soit impossible a rater.
-# On l'applique via CSS global cible sur LE SEUL bouton type="primary".
-DECIDE_CSS = """
-<style>
-button[kind="primary"]{
+# On cible UNIQUEMENT le bouton fusionne (cle "decide_grande") via sa classe
+# .st-key-decide_grande generee par Streamlit, pour ne teinter AUCUN autre
+# bouton (le vert "Chercher" et le GPS de la librairie restent intacts).
+DECIDE_CSS = """<style>
+.st-key-decide_grande button{
   font-size:22px !important;font-weight:800 !important;height:66px !important;
   border-radius:16px !important;width:100%;
   background-image:linear-gradient(135deg,#ff6a00,#ff2d00) !important;
@@ -717,6 +719,53 @@ button[kind="primary"]{
 }
 </style>
 """
+
+# Selection ponderee pour Daniel (16 ans) : choix au hasard pondere par le
+# score + effet "fete" (ballons), vibre sur mobile, grosse caisse orange,
+# lien Maps et phrase ironique. Factorise l'ancien bouton du bas (decide_btn).
+def elegir_restaurante(candidatos):
+    if not candidatos:
+        return
+    # Globos subiendo desde abajo (effet "fete") quand Daniel choisit.
+    st.balloons()
+    # Vibracion movil : navigator.vibrate(200) si disponible (solo en
+    # movil ; inofensivo en escritorio, no hace nada).
+    components.html(
+        "<script>if(navigator.vibrate){navigator.vibrate(200);}</script>",
+        height=0)
+    pesos = [max(1, r["_score"]) for r in candidatos]
+    elegido = random.choices(candidatos, weights=pesos, k=1)[0]
+    frase = random.choice(FRASES_IRONICAS["fr"])
+    maps_url = gmaps_link(elegido)
+    # Resultado ULTRA-destacado para Daniel (16 ans, 100 km/h, ne lit
+    # pas les details) : grosse caisse orange, nom en lettres GEANTES,
+    # separe nettement du reste.
+    st.markdown(
+        f'<div style="background:linear-gradient(135deg,#ff6a00,#ff2d00);'
+        f'color:#fff;border-radius:18px;padding:22px 26px;'
+        f'text-align:center;box-shadow:0 0 26px 6px rgba(255,106,0,.55);'
+        f'margin:14px 0;">'
+        f'<div style="font-size:15px;font-weight:700;letter-spacing:1px;'
+        f'opacity:.95;">🍽️ TON RESTO</div>'
+        f'<div style="font-size:40px;font-weight:900;line-height:1.1;'
+        f'margin:8px 0;">{elegido["nombre"]}</div>'
+        f'<div style="font-size:18px;font-weight:700;">'
+        f'{elegido["cocina"]} · {elegido["_score"]}/100</div>'
+        f'</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div style="text-align:center;margin:6px 0 14px;">'
+        f'<a href="{maps_url}" target="_blank" rel="noopener" '
+        f'style="display:inline-block;background:#111;color:#fff;'
+        f'font-weight:800;font-size:17px;padding:12px 20px;'
+        f'border-radius:12px;text-decoration:none;">📍 Ouvrir dans Google Maps</a>'
+        f'</div>', unsafe_allow_html=True)
+    st.info(frase)
+    st.success(t("why"))
+    for razon in elegido.get("_razones", []):
+        st.write(f"- {razon}")
+    if elegido["_score"] < 60:
+        st.caption(t("low_score"))
+
 
 # Caja glow en frances que ENVUELVE el boton "Get location" (ingles) de la
 # libreria, para que Daniel lo vea en su idioma. Sin animacion que mueva el
@@ -741,11 +790,20 @@ GPS_GLOW_CSS = """
 </div>
 """
 
-if st.button("🎲 Je sais pas, choisis pour moi (près de toi)", key="decide_grande",
-             use_container_width=True):
-    st.session_state["pending_city"] = ""
-    st.session_state["_gps_mode"] = True
-    st.rerun()
+# Bouton UNIQUE "DECIDE" gigante (fusionne l'ancien bouton du haut +
+# celui du bas) : orange pulsant grace a DECIDE_CSS cible sur
+# .st-key-decide_grande.
+# - sans resultats : active le mode GPS et relance (cherche pres de Daniel).
+# - avec resultats : choix pondere + fete + vibre (voir elegir_restaurante).
+st.markdown(DECIDE_CSS, unsafe_allow_html=True)
+if st.button("🎲 Je sais pas, choisis pour moi", key="decide_grande",
+             type="primary", use_container_width=True):
+    if st.session_state.get("resultados") is None:
+        st.session_state["pending_city"] = ""
+        st.session_state["_gps_mode"] = True
+        st.rerun()
+    else:
+        elegir_restaurante(st.session_state.get("candidatos", []))
 
 radius = st.slider(t("radius"), 500, 3000, 1200, 100)
 
@@ -923,58 +981,17 @@ else:
             r["_razones"] = razones
             candidatos.append(r)
     candidatos.sort(key=lambda r: r["_score"], reverse=True)
+    # Conserve la liste pour le bouton UNIQUE "DECIDE" (fussion du haut/bas).
+    st.session_state["candidatos"] = candidatos
 
     if not candidatos:
         st.warning(t("no_results"))
     else:
         st.success(t("recommended").format(n=len(candidatos)))
 
-        # Boton "Je sais pas, choisis pour moi" EXTRA-visible: Daniel (16 ans,
-        # 100 km/h, ne lit pas les details). Taille XL + couleur flash +
-        # animation pulse/brillance pour qu'il voie que le bouton existe.
-        # On utilise un vrai st.button (retour bool fiable) : en Streamlit 1.59
-        # components.html renvoie un DeltaGenerator (pas la valeur), ce qui
-        # provoquait "get() is not a valid Streamlit command". Le style
-        # naranja/pulso vient de DECIDE_CSS (CSS global sur le seul bouton
-        # type="primary").
-        st.markdown(DECIDE_CSS, unsafe_allow_html=True)
-        if st.button(t("decide"), type="primary", key="decide_btn",
-                     use_container_width=True):
-            # Globos subiendo desde abajo (effet "fete") quand Daniel choisit.
-            st.balloons()
-            pesos = [max(1, r["_score"]) for r in candidatos]
-            elegido = random.choices(candidatos, weights=pesos, k=1)[0]
-            frase = random.choice(FRASES_IRONICAS["fr"])
-            maps_url = gmaps_link(elegido)
-            # Resultado ULTRA-destacado para Daniel (16 ans, 100 km/h, ne lit
-            # pas les details) : grosse caisse orange, nom en lettres GEANTES,
-            # separe nettement du reste.
-            st.markdown(
-                f'<div style="background:linear-gradient(135deg,#ff6a00,#ff2d00);'
-                f'color:#fff;border-radius:18px;padding:22px 26px;'
-                f'text-align:center;box-shadow:0 0 26px 6px rgba(255,106,0,.55);'
-                f'margin:14px 0;">'
-                f'<div style="font-size:15px;font-weight:700;letter-spacing:1px;'
-                f'opacity:.95;">🍽️ TON RESTO</div>'
-                f'<div style="font-size:40px;font-weight:900;line-height:1.1;'
-                f'margin:8px 0;">{elegido["nombre"]}</div>'
-                f'<div style="font-size:18px;font-weight:700;">'
-                f'{elegido["cocina"]} · {elegido["_score"]}/100</div>'
-                f'</div>', unsafe_allow_html=True)
-            st.markdown(
-                f'<div style="text-align:center;margin:6px 0 14px;">'
-                f'<a href="{maps_url}" target="_blank" rel="noopener" '
-                f'style="display:inline-block;background:#111;color:#fff;'
-                f'font-weight:800;font-size:17px;padding:12px 20px;'
-                f'border-radius:12px;text-decoration:none;">📍 Ouvrir dans Google Maps</a>'
-                f'</div>', unsafe_allow_html=True)
-            st.info(frase)
-            st.success(t("why"))
-            for razon in elegido.get("_razones", []):
-                st.write(f"- {razon}")
-            if elegido["_score"] < 60:
-                st.caption(t("low_score"))
-            st.markdown("---")
+        # Bouton UNIQUE "DECIDE" (en haut) : le choix pondere s'affiche
+        # directement apres (voir elegir_restaurante). On liste ici les
+        # options recommandees.
 
         for r in candidatos[:20]:
             with st.container():
