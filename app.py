@@ -21,6 +21,7 @@ Flujo:
 
 import streamlit as st
 import streamlit.components.v1 as components
+from streamlit_js_eval import get_geolocation
 import requests
 import time
 import random
@@ -674,34 +675,20 @@ if "pending_city" not in st.session_state:
     st.session_state.pending_city = ""
 
 # --- Boton "DECIDE POR MI" con GPS: restaurantes CERCA de donde esta Daniel ---
-# navigator.geolocation solo funciona en contexto seguro (localhost o HTTPS).
-# En el PC (http://localhost:8501) funciona. En el iPhone por IP local
-# (http://192.168.x.x:8501) el navegador BLOQUEA el GPS (exige HTTPS); ahi
-# damos un fallback a ciudad al azar (abajo).
+# Metodo: streamlit_js_eval.get_geolocation() (open source, sin API key, usa
+# la API de geolocalizacion del navegador). En Streamlit 1.59 components.html
+# NO devuelve el valor del componente (devuelve DeltaGenerator), por lo que el
+# GPS anterior (components.html + navigator.geolocation) era codigo muerto.
+# get_geolocation() devuelve un dict real:
+#   exito  -> {"coords": {"latitude":.., "longitude":.., "accuracy":..}, "timestamp":..}
+#   error  -> {"error": {"code":.., "message":..}}
+# El boton interior dice "Get location" (ingles, no configurable en la lib);
+# lo disfrazamos con una caja glow en frances encima.
 import random as _rnd
 VILLES_FR = ["Paris", "Lyon", "Marseille", "Toulouse", "Nice", "Nantes",
              "Montpellier", "Strasbourg", "Bordeaux", "Lille", "Rennes",
              "Reims", "Saint-Etienne", "Le Havre", "Toulon", "Grenoble",
              "Amsterdam", "Rotterdam", "Utrecht", "La Haye", "Eindhoven"]
-GPS_HTML = """
-<script>
-function pedir(){
-  if(typeof Streamlit === "undefined") return;
-  if(!navigator.geolocation){
-    Streamlit.setComponentValue({error:"Geolocalizacion no disponible"});
-    return;
-  }
-  navigator.geolocation.getCurrentPosition(
-    function(pos){ Streamlit.setComponentValue({lat:pos.coords.latitude, lon:pos.coords.longitude}); },
-    function(err){ Streamlit.setComponentValue({error: err.message || "Permiso denegado"}); },
-    {enableHighAccuracy:true, timeout:10000, maximumAge:0}
-  );
-}
-if(window.Streamlit){ pedir(); }
-else { window.addEventListener("streamlit:loaded", pedir); }
-</script>
-<div style='font-size:14px;color:#555'>📡 Demande de position GPS…</div>
-"""
 
 # Bouton "Chercher" : meme effet XL + pulsation que le bouton decide, mais en
 # vert menthe (couleur calme pour la vue), pour que Daniel le remarque aussi.
@@ -733,8 +720,6 @@ CHERCHER_CSS = """
 # Style du bouton "Je sais pas, choisis pour moi" (Daniel, 16 ans, 100 km/h) :
 # on le rend XL, orange et pulsant pour qu'il soit impossible a rater.
 # On l'applique via CSS global cible sur LE SEUL bouton type="primary".
-# NOTE: components.html renvoie un DeltaGenerator en Streamlit 1.59 (et pas la
-# valeur du composant), donc on garde un vrai st.button (retour bool fiable).
 DECIDE_CSS = """
 <style>
 button[kind="primary"]{
@@ -754,6 +739,29 @@ button[kind="primary"]{
 </style>
 """
 
+# Caja glow en frances que ENVUELVE el boton "Get location" (ingles) de la
+# libreria, para que Daniel lo vea en su idioma. Sin animacion que mueva el
+# boton (los navegadores pierden clicks en botones escalados).
+GPS_GLOW_CSS = """
+<style>
+.gps-glow{
+  border:2px solid #19b98a; border-radius:16px; padding:10px 12px;
+  background:rgba(25,185,138,.08);
+  box-shadow:0 0 18px 4px rgba(25,185,138,.45);
+  text-align:center; margin:6px 0 14px;
+}
+.gps-glow .lbl{font-size:18px;font-weight:800;color:#063b2e;margin-bottom:4px;}
+/* Oculta el texto "Get location" del boton interior: lo sustituimos por la
+   etiqueta francesa de arriba. El boton sigue siendo clicable. */
+.gps-glow button{font-size:0 !important;height:44px;width:100%;}
+.gps-glow button::after{content:"📍 Autoriser (appuyer ici)";
+  font-size:18px;font-weight:800;color:#063b2e;}
+</style>
+<div class="gps-glow">
+  <div class="lbl">📡 Papa, autorise la position : l'appli choisit pour toi</div>
+</div>
+"""
+
 if st.button("🎲 DECIDE POR MÍ (cerca de ti)", key="decide_grande",
              use_container_width=True):
     st.session_state["pending_city"] = ""
@@ -765,25 +773,31 @@ radius = st.slider(t("radius"), 500, 3000, 1200, 100)
 # --- Camino GPS: tras pulsar "DECIDE POR MI", esperamos la posicion ---
 if st.session_state.get("_gps_mode"):
     st.info("📡 Autorise la localisation pour chercher pres de toi.")
-    _gps = components.html(GPS_HTML, height=50)
-    if isinstance(_gps, dict) and _gps:
+    # Caja glow en frances que envuelve el boton (ingles) de la libreria.
+    st.markdown(GPS_GLOW_CSS, unsafe_allow_html=True)
+    _loc = get_geolocation(component_key="geo_btn")
+    if isinstance(_loc, dict) and _loc:
         st.session_state["_gps_mode"] = False
-        if "error" in _gps:
-            st.session_state["_gps_error"] = _gps["error"]
+        if "error" in _loc:
+            st.session_state["_gps_error"] = _loc["error"].get(
+                "message", "GPS impossible")
         else:
+            _lat = _loc["coords"]["latitude"]
+            _lon = _loc["coords"]["longitude"]
             with st.spinner(t("osm")):
                 time.sleep(0.5)
                 st.session_state.resultados = get_restaurants_nearby(
-                    _gps["lat"], _gps["lon"], radius=radius)
+                    _lat, _lon, radius=radius)
                 st.session_state.display_name = "Pres de toi (GPS)"
             st.session_state["geo_alts"] = []
         st.rerun()
 
 if st.session_state.get("_gps_error"):
     st.error(f"❌ GPS impossible : {st.session_state['_gps_error']}")
-    st.info("Le GPS exige HTTPS (ou localhost sur ordinateur). Sur iPhone en "
-            "WiFi local (http://IP), le navigateur le bloque. Solution : "
-            "utilise la version en ligne (HTTPS) ou ce PC en localhost.")
+    st.info("Le GPS exige HTTPS (la version en ligne) ou localhost sur "
+            "ordinateur. Sur iPhone via IP locale (http://192.168.x.x:8501) "
+            "le navigateur le bloque. Solution : utilise la version en ligne "
+            "(HTTPS) ou ce PC en localhost.")
     if st.button("🎲 Ville au hasard (sans GPS)", key="fallback_gps"):
         st.session_state["_gps_error"] = ""
         st.session_state["pending_city"] = _rnd.choice(VILLES_FR)
