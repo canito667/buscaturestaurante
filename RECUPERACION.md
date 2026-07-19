@@ -51,7 +51,12 @@
   requirements.txt, sin secretos. Preparado pero NO hecho (app ya funciona).
 - PENDIENTE FUNCIONAL CLAVE: PLATOS y PRECIOS por restaurante (entrada
   manual acordada, sin fuente abierta Francia). No implementado todavia.
-- 2026-07-18 (sesion 3): PURGA de idiomas es/en del todo (I18N, REASONS,
+- 2026-07-18 (sesion 4): EFECTO visual movido del boton al CAMPO de busqueda
+  (borde verde animado .search-glow / searchGlow; boton Chercher limpio).
+  Commit 64007da (push ok). Verificado: arranca BOOT 200 + inspector
+  confirma animacion en vivo en el campo.
+- 2026-07-18 (sesion 3): PURGA de idiomas es/en (I18N, REASONS, FRASES_IRONICAS).
+  App 100% frances. Boton Chercher con pulso/brillo (luego movido al campo).
   FRASES_IRONICAS). App 100% frances. Fallbacks apuntan a "fr".
   BOTON "Chercher" con efecto visual pulso/brillo verde animado
   (.chercher-pulse / chercherPulse / chercherBtn) para que Daniel lo vea.

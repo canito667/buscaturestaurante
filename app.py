@@ -20,6 +20,7 @@ Flujo:
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
 import requests
 import time
 import random
@@ -41,6 +42,37 @@ UTIL_TAGS = [  # etiquetas que indican una ficha "cuidada" por la comunidad
     "wheelchair", "outdoor_seating", "indoor_seating", "takeaway",
     "diet:vegetarian", "diet:vegan", "addr:street",
 ]
+
+# Países donde buscamos restaurantes (OpenStreetMap, sin API key).
+# 'nombres' = palabras que detectan el país en los resultados del geocodificador.
+# 'iso'     = código ISO 3166 para la API de Nominatim (countrycodes).
+# 'capital' = ciudad por defecto para corregir el dedo cuando no hay ciudad.
+# 'ciudades'= ciudades conocidas (evita forzar la capital por error).
+PAISES = {
+    "fr": {"iso": "fr", "nombres": ("france",), "capital": "Paris",
+           "ciudades": {"paris", "lyon", "marseille", "toulouse", "nice",
+                        "nantes", "lille", "bordeaux", "strasbourg", "rennes"}},
+    "nl": {"iso": "nl", "nombres": ("netherlands", "pays-bas", "holland"),
+           "capital": "Amsterdam",
+           "ciudades": {"amsterdam", "rotterdam", "utrecht", "eindhoven",
+                        "groningen", "maastricht", "leiden", "delft",
+                        "den haag", "the hague", "la haye"}},
+}
+
+
+def _pais_de(texto):
+    """Devuelve el código ('fr'/'nl') si el texto menciona un país buscado,
+    o None. Insensible a mayúsculas/minúsculas."""
+    t = texto.lower()
+    for code, info in PAISES.items():
+        if any(nom in t for nom in info["nombres"]):
+            return code
+    return None
+
+
+def _es_pais_buscado(texto):
+    """True si el texto menciona Francia o Países Bajos."""
+    return _pais_de(texto) is not None
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +112,7 @@ def _photon(q, limit=5):
                      p.get("postcode"), p.get("city"), p.get("country")) if x]
             label = (name + ", " if name else "") + ", ".join(parts)
             out.append((float(c[1]), float(c[0]), label,
-                        "france" in (p.get("country", "").lower())))
+                        _pais_de(p.get("country", ""))))
         return out
     except Exception:
         return []
@@ -96,20 +128,21 @@ def geocode_help(location_query):
     # 1) Photon (principal)
     res = _photon(q, limit=5)
     if res:
-        france = [r for r in res if r[3]]
-        top_list = france or res
+        en_pais = [r for r in res if r[3]]   # resultados en FR o NL
+        top_list = en_pais or res
         top = top_list[0]
         alts = [r[2] for r in top_list[1:6]]
         return (top[0], top[1], top[2], alts)
     # 2) Respaldo Nominatim (postalcode si 5 digitos)
+    codigos = ",".join(info["iso"] for info in PAISES.values())  # "fr,nl"
     postal = q if (q.isdigit() and len(q) == 5) else None
     def _nom():
         if postal:
-            params = {"postalcode": postal, "country": "France",
+            params = {"postalcode": postal, "countrycodes": codigos,
                       "format": "json", "limit": 5, "addressdetails": 1}
         else:
             params = {"q": q, "format": "json", "limit": 5,
-                      "addressdetails": 1, "countrycodes": "fr"}
+                      "addressdetails": 1, "countrycodes": codigos}
         r = requests.get(NOMINATIM_URL, params=params,
                          headers=HEADERS, timeout=15)
         r.raise_for_status()
@@ -123,9 +156,9 @@ def geocode_help(location_query):
             time.sleep(1.5 * (intento + 1))
         if not data:
             return None, None, "", []
-        fr = [d for d in data if "france" in d.get("display_name", "").lower()]
-        top = (fr or data)[0]
-        alts = [d.get("display_name", "") for d in (fr or data)[1:6]]
+        en_pais = [d for d in data if _es_pais_buscado(d.get("display_name", ""))]
+        top = (en_pais or data)[0]
+        alts = [d.get("display_name", "") for d in (en_pais or data)[1:6]]
         return (float(top["lat"]), float(top["lon"]),
                 top.get("display_name", q), alts)
     except Exception:
@@ -164,13 +197,20 @@ def geocode_suggestions(location_query, max_res=5):
         variants.append(partes[-1])
     last = toks[-1] if toks else ""
     # corrige el dedo: ultima palabra larga acabada en vocal -> añade 'l'
-    CIUDADES = {"paris", "lyon", "marseille", "toulouse", "nice",
-                "nantes", "lille", "bordeaux", "strasbourg", "rennes"}
+    # Ciudades conocidas para no volver a forzar la capital por error
+    CIUDADES = set()
+    for _info in PAISES.values():
+        CIUDADES |= _info["ciudades"]
+    # Si el texto parece de Países Bajos, forzamos Amsterdam en vez de Paris
+    q_low = location_query.lower()
+    es_nl = any(n in q_low for n in PAISES["nl"]["nombres"]) or any(
+        c in q_low for c in PAISES["nl"]["ciudades"])
+    capital_defecto = "Amsterdam" if es_nl else "Paris"
     if (last and last[-1].lower() in "aeiouy" and len(last) >= 4
             and last.lower() not in CIUDADES):
         variants.append(" ".join(toks[:-1] + [last + "l"]))
-    if "paris" not in location_query.lower() and last:   # fuerza Paris
-        variants.append(" ".join(toks[:-1] + [last, "Paris"]))
+    if capital_defecto.lower() not in q_low and last:   # fuerza la capital
+        variants.append(" ".join(toks[:-1] + [last, capital_defecto]))
     variants.append(_norm(location_query))        # sin acentos
     variants.append(last)                          # solo la ciudad
     # quita duplicados manteniendo orden
@@ -180,14 +220,14 @@ def geocode_suggestions(location_query, max_res=5):
         if v and v.lower() not in seen:
             seen.add(v.lower())
             uniq.append(v)
-    france, other = [], []
+    en_pais, fuera = [], []
     for v in uniq:
-        if len(france) + len(other) >= max_res:
+        if len(en_pais) + len(fuera) >= max_res:
             break
         r = _fetch(v)
         if r:
-            (france if r[3] else other).append((r[0], r[1], r[2]))
-    return (france + other)[:max_res]
+            (en_pais if r[3] else fuera).append((r[0], r[1], r[2]))
+    return (en_pais + fuera)[:max_res]
 
 
 
@@ -454,7 +494,7 @@ I18N = {
         "lang_label": "🌐 Langue",
         "title": "🍽️ Daniel, señor duerme más — Déjeune vite, je choisis pour toi",
         "subtitle": "Arrête de dire «je sais pas» : on te propose de bonnes "
-                    "options en France, classées par ce que la communauté recommande vraiment",
+                    "options en France ou aux Pays-Bas, classées par ce que la communauté recommande vraiment",
         "how_header": "ℹ️ Comment ça marche",
         "how_body": (
             "**Le problème :** «qu'est-ce que tu veux manger ?» → «je sais pas» → "
@@ -474,7 +514,7 @@ I18N = {
             "EXISTE."
         ),
         "dest_label": "📍 Où déjeunes-tu aujourd'hui ? (ville, code postal ou adresse en France) :",
-        "dest_placeholder": "Ex : Paris, 75011, ou 3 bis rue Pasteur 94270",
+        "dest_placeholder": "Ex : Paris, 75011, Amsterdam ou 3 bis rue Pasteur 94270",
         "gps_hint": "Utilise ma position pour chercher les restos près de moi",
         "quick_cities": "⚡ Villes rapides (tape et cherche) :",
         "search": "🔍 Chercher",
@@ -527,9 +567,9 @@ I18N = {
         },
         "geo_none": "🤔 Je n'ai pas trouvé «{q}». Soit tu l'as tapé avec le pouce, "
                     "soit ce lieu est mieux caché que ton envie de cuisiner.",
-        "geo_none_tip": "Essaie : ajoute **France**, enlève les accents (Café -> "
-                        "Cafe), ou une ville connue proche (Paris, Lyon, "
-                        "Marseille). Je crois en toi. Un peu.",
+        "geo_none_tip": "Essaie : ajoute **France** ou **Pays-Bas**, enlève les "
+                        "accents (Café -> Cafe), ou une ville connue proche "
+                        "(Paris, Lyon, Amsterdam). Je crois en toi. Un peu.",
         "geo_lowprec": "🔍 J'ai trouvé un truc approchant, mais je ne parierais "
                        "pas que c'est «{q}». Vérifie avant de finir à manger dans "
                        "le pays d'à côté.",
@@ -624,36 +664,6 @@ FRASES_IRONICAS = {
 st.title(t("title"))
 st.subheader(t("subtitle"))
 
-# --- Adaptación móvil / Safari / "Añadir a pantalla de inicio" ---
-# Solo el bloque style (sin etiqueta meta pegada delante): Streamlit ya
-# incluye el viewport por defecto. Dejar el style aislado evita que el parser
-# de markdown lo muestre como texto. Selectores actualizados a Streamlit 1.x
-# (los de "reportview" ya no existen y no aplicaban).
-st.markdown(
-    """
-    <style>
-    /* Botones y radios grandes para el dedo (touch-friendly) */
-    .stButton>button, .stRadio>div, .stCheckbox>label, .stSelectbox>div {
-      font-size:17px !important; min-height:44px;
-    }
-    .stTextInput>div>div>input { font-size:17px !important; height:46px; }
-    /* La barra lateral en movil ocupa toda la pantalla y se ve como menu */
-    @media (max-width: 640px) {
-      section[data-testid='stSidebar'] { width:100% !important; }
-    }
-    /* Quita el hueco inferior en Safari (notch / home indicator) */
-    .block-container { padding-bottom: 80px; }
-    </style>
-    """,
-    unsafe_allow_html=True)
-
-# Barra lateral: perfil movil (idioma fijado a frances, sin selector)
-with st.sidebar:
-    st.header(t("perfil_header"))
-    st.write(t("perfil_body"))
-    st.write(t("consejo"))
-    st.info(t("fuente"))
-
 # --- Paso 1: destino ---
 if "resultados" not in st.session_state:
     st.session_state.resultados = None  # lista de restaurantes ya obtenidos
@@ -663,41 +673,140 @@ if "resultados" not in st.session_state:
 if "pending_city" not in st.session_state:
     st.session_state.pending_city = ""
 
-# Caja de busqueda destacada (sin valor por defecto: el usuario escribe el suyo)
-st.markdown(
-    "<div style='padding:14px 16px;border-radius:14px;'"
-    "background:linear-gradient(135deg,#1f6f54,#2e8b57);color:white;'"
-    "box-shadow:0 4px 14px rgba(0,0,0,.25);margin-bottom:14px'>"
-    f"<div style='font-size:20px;font-weight:800;margin-bottom:10px'>"
-    f"🍽️ {t('dest_label')}</div></div>",
-    unsafe_allow_html=True)
+# --- Boton "DECIDE POR MI" con GPS: restaurantes CERCA de donde esta Daniel ---
+# navigator.geolocation solo funciona en contexto seguro (localhost o HTTPS).
+# En el PC (http://localhost:8501) funciona. En el iPhone por IP local
+# (http://192.168.x.x:8501) el navegador BLOQUEA el GPS (exige HTTPS); ahi
+# damos un fallback a ciudad al azar (abajo).
+import random as _rnd
+VILLES_FR = ["Paris", "Lyon", "Marseille", "Toulouse", "Nice", "Nantes",
+             "Montpellier", "Strasbourg", "Bordeaux", "Lille", "Rennes",
+             "Reims", "Saint-Etienne", "Le Havre", "Toulon", "Grenoble",
+             "Amsterdam", "Rotterdam", "Utrecht", "La Haye", "Eindhoven"]
+GPS_HTML = """
+<script>
+function pedir(){
+  if(typeof Streamlit === "undefined") return;
+  if(!navigator.geolocation){
+    Streamlit.setComponentValue({error:"Geolocalizacion no disponible"});
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    function(pos){ Streamlit.setComponentValue({lat:pos.coords.latitude, lon:pos.coords.longitude}); },
+    function(err){ Streamlit.setComponentValue({error: err.message || "Permiso denegado"}); },
+    {enableHighAccuracy:true, timeout:10000, maximumAge:0}
+  );
+}
+if(window.Streamlit){ pedir(); }
+else { window.addEventListener("streamlit:loaded", pedir); }
+</script>
+<div style='font-size:14px;color:#555'>📡 Demande de position GPS…</div>
+"""
 
-# Efecto visual en el campo de busqueda (donde se escribe la direccion):
-# caja con borde verde animado (latido de glow) para que Daniel vea claro
-# donde escribir. CSS puro, sin JS -> no cuelga la pagina.
-st.markdown(
-    "<style>"
-    ".search-glow{padding:4px;border-radius:12px;"
-    "animation:searchGlow 1.8s ease-in-out infinite;}"
-    "@keyframes searchGlow{"
-    "0%,100%{box-shadow:0 0 0 2px rgba(46,139,87,.35),0 0 8px 1px rgba(46,139,87,.4);}"
-    "50%{box-shadow:0 0 0 4px rgba(46,139,87,.7),0 0 20px 6px rgba(46,139,87,.9);}"
-    "}"
-    ".search-glow input{font-size:18px !important;height:48px !important;"
-    "border:2px solid #2e8b57 !important;}"
-    "</style>",
-    unsafe_allow_html=True)
-with st.container():
-    st.markdown("<div class='search-glow'>", unsafe_allow_html=True)
-    location_query = st.text_input(
-        "",  # etiqueta ya en la caja destacada de arriba
-        key="location_query",
-        placeholder=t("dest_placeholder"))
-    st.markdown("</div>", unsafe_allow_html=True)
+# Bouton "Chercher" : meme effet XL + pulsation que le bouton decide, mais en
+# vert menthe (couleur calme pour la vue), pour que Daniel le remarque aussi.
+# On garde un vrai st.button (retour bool fiable) et on le stylise via CSS
+# global cible SUR LE SEUL bouton dont la cle est "chercher_btn" : Streamlit
+# genere la classe .st-key-chercher_btn sur son conteneur -> ne teinte AUCUN
+# autre bouton (le GPS est dans un iframe isole, et decide est type="primary").
+CHERCHER_CSS = """
+<style>
+.st-key-chercher_btn button{
+  width:100% !important;height:66px !important;font-size:22px !important;
+  font-weight:800 !important;color:#063b2e !important;
+  background-image:linear-gradient(135deg,#5fe3b0,#19b98a) !important;
+  background-color:transparent !important;
+  border:3px solid #fff !important;border-radius:16px !important;cursor:pointer;
+  box-shadow:0 0 0 0 rgba(25,185,138,.7) !important;
+  animation:chercherPulse 1.6s ease-in-out infinite !important;
+}
+/* Pulse = ONLY a glow (box-shadow), never a transform: the button must not
+   move so the click always lands (some browsers miss clicks on scaled btns). */
+@keyframes chercherPulse{
+  0%{box-shadow:0 0 0 0 rgba(25,185,138,.7);}
+  50%{box-shadow:0 0 26px 10px rgba(25,185,138,.55);}
+  100%{box-shadow:0 0 0 0 rgba(25,185,138,.7);}
+}
+</style>
+"""
 
-search_button = st.button(t("search"), type="primary", use_container_width=True)
+# Style du bouton "Je sais pas, choisis pour moi" (Daniel, 16 ans, 100 km/h) :
+# on le rend XL, orange et pulsant pour qu'il soit impossible a rater.
+# On l'applique via CSS global cible sur LE SEUL bouton type="primary".
+# NOTE: components.html renvoie un DeltaGenerator en Streamlit 1.59 (et pas la
+# valeur du composant), donc on garde un vrai st.button (retour bool fiable).
+DECIDE_CSS = """
+<style>
+button[kind="primary"]{
+  font-size:22px !important;font-weight:800 !important;height:66px !important;
+  border-radius:16px !important;width:100%;
+  background-image:linear-gradient(135deg,#ff6a00,#ff2d00) !important;
+  background-color:transparent !important;
+  color:#000 !important;border:3px solid #fff !important;cursor:pointer;
+  box-shadow:0 0 0 0 rgba(255,106,0,.7) !important;
+  animation:decidePulse 1.5s ease-in-out infinite !important;
+}
+@keyframes decidePulse{
+  0%{box-shadow:0 0 0 0 rgba(255,106,0,.75);}
+  50%{box-shadow:0 0 26px 10px rgba(255,106,0,.6);}
+  100%{box-shadow:0 0 0 0 rgba(255,106,0,.75);}
+}
+</style>
+"""
+
+if st.button("🎲 DECIDE POR MÍ (cerca de ti)", key="decide_grande",
+             use_container_width=True):
+    st.session_state["pending_city"] = ""
+    st.session_state["_gps_mode"] = True
+    st.rerun()
 
 radius = st.slider(t("radius"), 500, 3000, 1200, 100)
+
+# --- Camino GPS: tras pulsar "DECIDE POR MI", esperamos la posicion ---
+if st.session_state.get("_gps_mode"):
+    st.info("📡 Autorise la localisation pour chercher pres de toi.")
+    _gps = components.html(GPS_HTML, height=50)
+    if isinstance(_gps, dict) and _gps:
+        st.session_state["_gps_mode"] = False
+        if "error" in _gps:
+            st.session_state["_gps_error"] = _gps["error"]
+        else:
+            with st.spinner(t("osm")):
+                time.sleep(0.5)
+                st.session_state.resultados = get_restaurants_nearby(
+                    _gps["lat"], _gps["lon"], radius=radius)
+                st.session_state.display_name = "Pres de toi (GPS)"
+            st.session_state["geo_alts"] = []
+        st.rerun()
+
+if st.session_state.get("_gps_error"):
+    st.error(f"❌ GPS impossible : {st.session_state['_gps_error']}")
+    st.info("Le GPS exige HTTPS (ou localhost sur ordinateur). Sur iPhone en "
+            "WiFi local (http://IP), le navigateur le bloque. Solution : "
+            "utilise la version en ligne (HTTPS) ou ce PC en localhost.")
+    if st.button("🎲 Ville au hasard (sans GPS)", key="fallback_gps"):
+        st.session_state["_gps_error"] = ""
+        st.session_state["pending_city"] = _rnd.choice(VILLES_FR)
+        st.session_state["_auto_search"] = True
+        st.rerun()
+
+location_query = st.text_input(
+    t("dest_label"),
+    key="location_query",
+    placeholder=t("dest_placeholder"),
+    label_visibility="collapsed")
+
+# Bouton "Chercher" XL + vert pulsant (meme effet que decide, couleur calme).
+# On garde un vrai st.button (retour bool fiable, sans depends du runtime
+# Streamlit de l'iframe) et on le stylise via CSS global cible SUR LE SEUL
+# bouton dont la cle est "chercher_btn" (classe .st-key-chercher_btn generee
+# par Streamlit, unique -> ne teinte aucun autre bouton).
+st.markdown(CHERCHER_CSS, unsafe_allow_html=True)
+search_button = st.button(t("search"), key="chercher_btn", use_container_width=True)
+# El boton gigante "DECIDE POR MI" fuerza la busqueda con la ciudad elegida
+if st.session_state.get("_auto_search"):
+    st.session_state["_auto_search"] = False
+    search_button = True
 
 # --- Paso 2: ¿solo o acompañado? ---
 st.markdown(f"### {t('companion_q')}")
@@ -769,8 +878,8 @@ if search_button:
                 st.rerun()
         else:
             # ¿El resultado parece Francia? Si no, advertir y proponer alternativas.
-            es_francia = "france" in display_name.lower()
-            if not es_francia and alts:
+            es_pais = _es_pais_buscado(display_name)
+            if not es_pais and alts:
                 st.warning(t("geo_lowprec").format(q=query))
                 st.session_state["geo_candidato"] = (lat, lon, display_name)
                 st.session_state["geo_alts"] = alts
@@ -827,31 +936,45 @@ else:
     else:
         st.success(t("recommended").format(n=len(candidatos)))
 
-        if st.button(t("decide"), type="primary"):
+        # Boton "Je sais pas, choisis pour moi" EXTRA-visible: Daniel (16 ans,
+        # 100 km/h, ne lit pas les details). Taille XL + couleur flash +
+        # animation pulse/brillance pour qu'il voie que le bouton existe.
+        # On utilise un vrai st.button (retour bool fiable) : en Streamlit 1.59
+        # components.html renvoie un DeltaGenerator (pas la valeur), ce qui
+        # provoquait "get() is not a valid Streamlit command". Le style
+        # naranja/pulso vient de DECIDE_CSS (CSS global sur le seul bouton
+        # type="primary").
+        st.markdown(DECIDE_CSS, unsafe_allow_html=True)
+        if st.button(t("decide"), type="primary", key="decide_btn",
+                     use_container_width=True):
+            # Globos subiendo desde abajo (effet "fete") quand Daniel choisit.
+            st.balloons()
             pesos = [max(1, r["_score"]) for r in candidatos]
             elegido = random.choices(candidatos, weights=pesos, k=1)[0]
             frase = random.choice(FRASES_IRONICAS["fr"])
-            st.balloons()
             maps_url = gmaps_link(elegido)
-            # Resultado GRANDE y destacado: la gente apurada (99%) no lee
-            # texto pequeno. Se separa del resto con una caja visual.
-            st.markdown("---")
+            # Resultado ULTRA-destacado para Daniel (16 ans, 100 km/h, ne lit
+            # pas les details) : grosse caisse orange, nom en lettres GEANTES,
+            # separe nettement du reste.
             st.markdown(
-                f"<div style='padding:18px 20px;border-radius:14px;"
-                f"background:linear-gradient(135deg,#1f6f54,#2e8b57);"
-                f"color:white;box-shadow:0 4px 14px rgba(0,0,0,.25)'>"
-                f"<div style='font-size:14px;opacity:.85;margin-bottom:4px'>"
-                f"🤖 {t('chosen_eyebrow')}</div>"
-                f"<div style='font-size:34px;font-weight:800;line-height:1.1'>"
-                f"🍽️ {elegido['nombre']}</div>"
-                f"<div style='font-size:18px;margin-top:6px'>"
-                f"{t('cuisine_idx').format(c=elegido['cocina'], s=elegido['_score'])}"
-                f"</div>"
-                f"<div style='font-size:16px;margin-top:8px'>"
-                f"📍 <a href='{maps_url}' target='_blank' style='color:#cfe'>"
-                f"{t('gmaps_addr_text')}</a></div>"
-                f"</div>",
-                unsafe_allow_html=True)
+                f'<div style="background:linear-gradient(135deg,#ff6a00,#ff2d00);'
+                f'color:#fff;border-radius:18px;padding:22px 26px;'
+                f'text-align:center;box-shadow:0 0 26px 6px rgba(255,106,0,.55);'
+                f'margin:14px 0;">'
+                f'<div style="font-size:15px;font-weight:700;letter-spacing:1px;'
+                f'opacity:.95;">🍽️ TON RESTO</div>'
+                f'<div style="font-size:40px;font-weight:900;line-height:1.1;'
+                f'margin:8px 0;">{elegido["nombre"]}</div>'
+                f'<div style="font-size:18px;font-weight:700;">'
+                f'{elegido["cocina"]} · {elegido["_score"]}/100</div>'
+                f'</div>', unsafe_allow_html=True)
+            st.markdown(
+                f'<div style="text-align:center;margin:6px 0 14px;">'
+                f'<a href="{maps_url}" target="_blank" rel="noopener" '
+                f'style="display:inline-block;background:#111;color:#fff;'
+                f'font-weight:800;font-size:17px;padding:12px 20px;'
+                f'border-radius:12px;text-decoration:none;">📍 Ouvrir dans Google Maps</a>'
+                f'</div>', unsafe_allow_html=True)
             st.info(frase)
             st.success(t("why"))
             for razon in elegido.get("_razones", []):
